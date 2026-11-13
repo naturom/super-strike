@@ -65,7 +65,11 @@ export async function createGameServer(options:{secret?:string;handler?:(req:Inc
     if(options.handler){await options.handler(req,res);return;}
     json(res,404,{error:'Not found'});
   });
-  const transport=new WebSocketTransport({server:http,maxPayload:4096,pingInterval:0,verifyClient: (info:{origin:string;req:IncomingMessage}) => !info.origin || (()=>{try{return new URL(info.origin).host===info.req.headers.host;}catch{return false;}})()});
+  const transport=new WebSocketTransport({noServer:true,maxPayload:4096,pingInterval:0,verifyClient: (info:{origin:string;req:IncomingMessage}) => !info.origin || (()=>{try{return new URL(info.origin).host===info.req.headers.host;}catch{return false;}})()});
+  // Next installs its own development upgrade handler on the shared server.
+  // Only one handler can accept a socket: stealing HMR upgrades corrupts the
+  // connection and leaves Turbopack's lazy arena import waiting indefinitely.
+  transport.attachToServer(http,{filter:req=>!(req.url??'').startsWith('/_next/')});
   const game=new Server({transport,greet:false,gracefullyShutdown:false});
   game.define('arena',ArenaRoom);
   const appRequest=http.listeners('request')[0];
@@ -85,5 +89,5 @@ export async function createGameServer(options:{secret?:string;handler?:(req:Inc
     if(path.startsWith('/matchmake/'))colyseusRequest.call(http,req,res);else appRequest.call(http,req,res);
   });
   }
-  return {http,game,signs,async listen(port=0){await game.listen(port,'0.0.0.0');installRouter();const address=http.address();return typeof address==='object'&&address?address.port:port;},async close(){stopping=true;await game.gracefullyShutdown(false);}};
+  return {http,game,signs,async listen(port=0){await game.listen(port,'0.0.0.0');installRouter();const address=http.address();return typeof address==='object'&&address?address.port:port;},async close(){stopping=true;await game.gracefullyShutdown(false);http.close();}};
 }
