@@ -7,7 +7,7 @@ export {DEPOT,DEPOT_CATWALK} from './depot';
 export {DUST2,dustPoint,DUST_SCALE} from './dust2';
 export {SCOUT_TOWER,scoutTowerRoute} from './scout-tower';
 export {FALL_DAMAGE,fallDamage} from './fall-damage';
-export {GRENADE_THROW,grenadeThrowProgress,grenadeReleased,type GrenadeThrow} from './grenade-throw';
+export {GRENADE_THROW,GRENADE_BLAST,grenadeBlastDamage,grenadeThrowProgress,grenadeReleased,type GrenadeThrow} from './grenade-throw';
 export {TREX_RULES,TREX_HIT_VOLUMES,rayTrex,type Trex} from './trex';
 export type Team = 'red' | 'blue';
 export const TEAMS={red:{name:'Team A',avatar:'ironman',character:'Iron Man'},blue:{name:'Team B',avatar:'ultraman',character:'Ultraman'}} as const satisfies Record<Team,{name:string;avatar:AvatarId;character:string}>;
@@ -29,7 +29,7 @@ export const validMode=(value:unknown):value is GameMode=>value==='deathmatch'||
 export const BOMB_RULES={plantMs:3200,fuseMs:40000,defuseMs:10000,range:2.2} as const;
 export interface BombSite {id:'A'|'B';x:number;z:number;w:number;d:number;minY:number;maxY:number;marker:Vec3&{size:number};}
 export const BOMB_TARGET:Record<Team,'A'|'B'>={red:'A',blue:'B'};
-export interface BombState extends Vec3 {team:Team;status:'carried'|'dropped'|'planted'|'defused'|'exploded';carrierId:string|null;siteId:'A'|'B'|null;explodeAt:number;action:{kind:'plant'|'defuse';playerId:string;startedAt:number;completeAt:number}|null;}
+export interface BombState extends Vec3 {team:Team;status:'carried'|'dropped'|'planted'|'defused'|'exploded';carrierId:string|null;planter?:{id:string;name:string};siteId:'A'|'B'|null;explodeAt:number;action:{kind:'plant'|'defuse';playerId:string;startedAt:number;completeAt:number}|null;}
 export type MapId = 'dunes' | 'relay';
 export type Vec3 = { x: number; y: number; z: number };
 export const TICK_RATE = 30, DT = 1 / TICK_RATE, SNAPSHOT_RATE = 20;
@@ -76,7 +76,7 @@ export type ImpactSurface='stone'|'wood'|'metal'|'sand'|'asphalt';
 export interface ImpactMark {id:number;at:number;weapon:Weapon|'knife';position:Vec3;normal:Vec3;surface:ImpactSurface;ray:{origin:Vec3;direction:Vec3};expiresAt:number;}
 export interface Snapshot {teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
 export type HitZone = 'head'|'body';
-export interface CombatEvent {type:'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
+export interface CombatEvent {type:'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
 export function validInput(value:unknown):value is Input {
   if(!value||typeof value!=='object')return false;const i=value as Input;
   return (i.scope===undefined||i.scope===0||i.scope===1||i.scope===2)&&(i.spawnId===undefined||Number.isSafeInteger(i.spawnId)&&i.spawnId>0)&&Number.isSafeInteger(i.seq)&&i.seq>=0&&i.seq<2**31&&Number.isFinite(i.forward)&&Math.abs(i.forward)<=1&&Number.isFinite(i.strafe)&&Math.abs(i.strafe)<=1&&Number.isFinite(i.yaw)&&Math.abs(i.yaw)<=Math.PI*2&&Number.isFinite(i.pitch)&&Math.abs(i.pitch)<=1.5&&

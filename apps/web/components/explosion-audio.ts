@@ -7,14 +7,14 @@ export function explosionSignal(rate:number,kind:ExplosionKind):Float32Array {
   const bomb=kind==='bomb',duration=EXPLOSION_AUDIO_SECONDS[kind],length=Math.ceil(rate*duration),dry=new Float32Array(length),out=new Float32Array(length);
   let seed=bomb?0x4c3401:0x6a1d,low=0,mid=0,phase=0;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296*2-1;};
-  const lowCut=1-Math.exp(-2*Math.PI*(bomb?85:140)/rate),midCut=1-Math.exp(-2*Math.PI*1700/rate);
+  const lowCut=1-Math.exp(-2*Math.PI*(bomb?85:120)/rate),midCut=1-Math.exp(-2*Math.PI*1700/rate);
   for(let i=0;i<length;i++){
     const t=i/rate,white=random();low+=lowCut*(white-low);mid+=midCut*(white-mid);
-    phase+=2*Math.PI*((bomb?29:47)+(bomb?56:95)*Math.exp(-t/(bomb?.3:.09)))/rate;
+    phase+=2*Math.PI*((bomb?29:42)+(bomb?56:90)*Math.exp(-t/(bomb?.3:.09)))/rate;
     const crack=(white-mid)*Math.exp(-t/(bomb?.028:.012))*.7;
-    const body=mid*Math.exp(-t/(bomb?.65:.16))*.75+low*Math.exp(-t/(bomb?1.5:.38))*3;
-    const pressure=Math.sin(phase)*Math.exp(-t/(bomb?.75:.19))*(1-Math.exp(-t/.003))*.65;
-    const rolling=low*(.5+.5*Math.sin(t*13)**2)*(1-Math.exp(-t/.025))*Math.exp(-t/(bomb?2.15:.64))*(bomb?2.7:1.3);
+    const body=mid*Math.exp(-t/(bomb?.65:.16))*.75+low*Math.exp(-t/(bomb?1.5:.45))*3;
+    const pressure=Math.sin(phase)*Math.exp(-t/(bomb?.75:.23))*(1-Math.exp(-t/.003))*.65;
+    const rolling=low*(.5+.5*Math.sin(t*13)**2)*(1-Math.exp(-t/.025))*Math.exp(-t/(bomb?2.15:.75))*(bomb?2.7:1.45);
     const fade=Math.min(1,(duration-t)/.7);dry[i]=(crack+body+pressure+rolling)*Math.max(0,fade);
   }
   // Irregular fragments and ground impacts follow the initial shock instead of

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {GRENADE_THROW,type Grenade,type GrenadeThrow,type Vec3} from '@sirocco/shared';
 export function grenadeLeavesHand(grenade:Grenade,action:GrenadeThrow|undefined,time:number){
  const releasedAt=grenade.explodeAt-GRENADE_THROW.fuseMs;
- return !!action?.released&&time>=releasedAt&&time-releasedAt<150&&Math.abs(releasedAt-action.startedAt-GRENADE_THROW.releaseMs)<40;
+ return !!action?.released&&time>=releasedAt&&time-releasedAt<150&&Math.abs(releasedAt-(action.releaseAt??action.startedAt+GRENADE_THROW.releaseMs))<40;
 }
 /** A brief render-only handoff joins the viewmodel FOV to the authoritative
  * world trajectory. New grenades never interpolate from the map origin. */

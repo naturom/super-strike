@@ -16,12 +16,12 @@ test('knife respects walls, friendly fire and spawn protection',()=>{
   s.solids=[];b.protectedUntil=s.time+10000;tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,100);
   b.protectedUntil=0;b.team='red';tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,100);
 });
-test('grenade selection is harmless; mouse click throws once, switching while held cannot throw, empty slots are safe',()=>{
+test('grenade selection is harmless; hold reserves one, release throws once, empty slots are safe',()=>{
   const {s,a}=duel();tick(s,30,{weapon:'grenade',reload:true});assert.equal(a.grenades,2);assert.equal(a.reloadUntil,0);assert.equal(s.grenades.length,0);
   tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,1);tick(s,30,{weapon:'grenade',fire:true});assert.equal(a.grenades,1);
   tick(s,1,{weapon:'knife',fire:true});tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,1);
-  tick(s,1,{weapon:'grenade'});tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,0);
-  tick(s,20,{weapon:'grenade'});tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,0);assert.equal(s.grenades.length,2);
+  assert.equal(s.grenades.length,0,'holding never launches a grenade');tick(s,15,{weapon:'grenade'});assert.equal(s.grenades.length,1);tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,0);
+  tick(s,22,{weapon:'grenade'});tick(s,1,{weapon:'grenade',fire:true});assert.equal(a.grenades,0);assert.equal(s.grenades.length,2);
   tick(s,1,{weapon:'pistol'});assert.equal(a.weapon,'pistol');assert.equal(a.ammo.pistol,12);
 });
 test('knife and grenade inputs validate; switching cancels reload without granting unowned weapons',()=>{

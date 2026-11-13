@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {wallDistance,type Vec3,type Solid} from '@sirocco/shared';
 import type {ExplosionKind} from './explosion-audio';
-export const EXPLOSION_VISUAL_SECONDS={grenade:4,bomb:10} as const;
+export const EXPLOSION_VISUAL_SECONDS={grenade:4.4,bomb:10} as const;
 type Puff={sprite:THREE.Sprite;origin:THREE.Vector3;velocity:THREE.Vector3;size:number;delay:number;life:number;spin:number;rotation:number;kind:'fire'|'smoke'|'dust'};
 type Blast={root:THREE.Group;start:number;duration:number;kind:ExplosionKind;puffs:Puff[];flash:THREE.Sprite;ring:THREE.Mesh;scorch?:THREE.Mesh;embers:THREE.Points;velocities:THREE.Vector3[]};
 function cloudTexture(){
@@ -45,21 +45,21 @@ export class ExplosionEffects {
       const count=type==='fire'?(bomb?8:5):type==='smoke'?(bomb?16:10):(bomb?12:7);
       for(let i=0;i<count;i++){
         const a=random()*Math.PI*2,r=random()*.45,origin=new THREE.Vector3(Math.cos(a)*r,(random()-.2)*.3,Math.sin(a)*r);
-        const speed=type==='dust'?(bomb?6:3.6)*(1+random()):type==='fire'?(bomb?3:1.9)*(1+random()):(bomb?1.1:.65)*(1+random());
+        const speed=type==='dust'?(bomb?6:4.1)*(1+random()):type==='fire'?(bomb?3:2.15)*(1+random()):(bomb?1.1:.72)*(1+random());
         const velocity=new THREE.Vector3(Math.cos(a)*speed,type==='dust'?.15+random()*.6:type==='fire'?1+random()*2:1.1+random()*1.8,Math.sin(a)*speed);
         // Confine the cloud's centre to the first wall in its direction.
         const distance=wallDistance({x:at.x,y:at.y+.35,z:at.z},{x:Math.cos(a),y:0,z:Math.sin(a)},solids);
         if(distance<speed*1.4){const scale=Math.max(0,distance-.3)/(speed*1.4);velocity.x*=scale;velocity.z*=scale;}
         const s=sprite(false,type==='fire');s.material.rotation=random()*Math.PI*2;
-        puffs.push({sprite:s,origin,velocity,size:(type==='dust'?1.2:type==='fire'?.8:1.1)*(bomb?2:1)*(1+random()),delay:type==='fire'?random()*.075:type==='smoke'?.04+random()*.24:.03+random()*.14,life:type==='fire'?(bomb?1.45:.42):type==='smoke'?duration-.7-random()*.7:(bomb?5.8:2.6),spin:(random()-.5)*.3,rotation:s.material.rotation,kind:type});
+        puffs.push({sprite:s,origin,velocity,size:(type==='dust'?1.2:type==='fire'?.8:1.1)*(bomb?2:1.12)*(1+random()),delay:type==='fire'?random()*.075:type==='smoke'?.04+random()*.24:.03+random()*.14,life:type==='fire'?(bomb?1.45:.48):type==='smoke'?duration-.7-random()*.7:(bomb?5.8:2.9),spin:(random()-.5)*.3,rotation:s.material.rotation,kind:type});
       }
     }
     const flash=sprite(true);flash.position.y=.35;
     const ring=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:this.cloud,color:'#bdac8e',transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=ground?.06-down:0;ring.visible=ground;root.add(ring);
     let scorch:THREE.Mesh|undefined;
-    if(ground){scorch=new THREE.Mesh(new THREE.PlaneGeometry(bomb?7:2.4,bomb?7:2.4),new THREE.MeshBasicMaterial({map:this.cloud,color:'#1d1915',transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));scorch.rotation.x=-Math.PI/2;scorch.position.y=-down+.065;root.add(scorch);}
+    if(ground){scorch=new THREE.Mesh(new THREE.PlaneGeometry(bomb?7:2.7,bomb?7:2.7),new THREE.MeshBasicMaterial({map:this.cloud,color:'#1d1915',transparent:true,opacity:.38,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));scorch.rotation.x=-Math.PI/2;scorch.position.y=-down+.065;root.add(scorch);}
     const positions=new Float32Array((bomb?32:18)*3),velocities:THREE.Vector3[]=[];
-    for(let i=0;i<positions.length/3;i++){const a=random()*Math.PI*2,speed=3+random()*(bomb?13:8);velocities.push(new THREE.Vector3(Math.cos(a)*speed,1+random()*6,Math.sin(a)*speed));}
+    for(let i=0;i<positions.length/3;i++){const a=random()*Math.PI*2,speed=3+random()*(bomb?13:9);velocities.push(new THREE.Vector3(Math.cos(a)*speed,1+random()*6,Math.sin(a)*speed));}
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
     const embers=new THREE.Points(geometry,new THREE.PointsMaterial({color:'#ffbd6c',size:.055,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));root.add(embers);
     this.blasts.push({root,start:now,duration,kind,puffs,flash,ring,scorch,embers,velocities});this.update(now);
@@ -67,9 +67,9 @@ export class ExplosionEffects {
   update(now:number){
     for(const blast of this.blasts){
       const t=Math.max(0,(now-blast.start)/1000),bomb=blast.kind==='bomb';
-      blast.flash.scale.setScalar((bomb?3.8:1.8)*(1+t*8));blast.flash.material.opacity=Math.max(0,1-t/(bomb?.18:.09))*(this.reducedMotion?.3:.9);
+      blast.flash.scale.setScalar((bomb?3.8:2.15)*(1+t*8));blast.flash.material.opacity=Math.max(0,1-t/(bomb?.18:.11))*(this.reducedMotion?.3:.9);
       blast.flash.visible=blast.flash.material.opacity>.001;
-      const ringAge=t/(bomb?.7:.4);blast.ring.scale.setScalar(1+ringAge*(bomb?14:7));(blast.ring.material as THREE.MeshBasicMaterial).opacity=Math.max(0,1-ringAge)*.18;
+      const ringAge=t/(bomb?.7:.45);blast.ring.scale.setScalar(1+ringAge*(bomb?14:8));(blast.ring.material as THREE.MeshBasicMaterial).opacity=Math.max(0,1-ringAge)*.18;
       blast.ring.visible=ringAge<1&&!!blast.scorch;
       if(blast.scorch)(blast.scorch.material as THREE.MeshBasicMaterial).opacity=.38*Math.min(1,Math.max(0,blast.duration-t)/2);
       for(const p of blast.puffs){
@@ -90,9 +90,9 @@ export class ExplosionEffects {
     }
     this.blasts=this.blasts.filter(blast=>{if(now-blast.start<blast.duration*1000)return true;this.remove(blast);return false;});
     const bright=this.blasts.filter(b=>now-b.start<450).sort((a,b)=>this.intensity(b,now)-this.intensity(a,now));
-    this.lights.forEach((light,i)=>{const blast=bright[i];light.intensity=blast?this.intensity(blast,now):0;if(blast){light.position.copy(blast.root.position);light.position.y+=.8;light.distance=blast.kind==='bomb'?30:14;}});
+    this.lights.forEach((light,i)=>{const blast=bright[i];light.intensity=blast?this.intensity(blast,now):0;if(blast){light.position.copy(blast.root.position);light.position.y+=.8;light.distance=blast.kind==='bomb'?30:16;}});
   }
-  private intensity(blast:Blast,now:number){return(blast.kind==='bomb'?160:60)*Math.exp(-Math.max(0,now-blast.start)*.018)*(this.reducedMotion?.2:1);}
+  private intensity(blast:Blast,now:number){return(blast.kind==='bomb'?160:72)*Math.exp(-Math.max(0,now-blast.start)*.018)*(this.reducedMotion?.2:1);}
   private remove(blast:Blast){blast.root.removeFromParent();blast.root.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Points)o.geometry.dispose();if(o instanceof THREE.Mesh||o instanceof THREE.Points||o instanceof THREE.Sprite){const materials=Array.isArray(o.material)?o.material:[o.material];materials.forEach(m=>m.dispose());}});}
   clear(){this.blasts.forEach(b=>this.remove(b));this.blasts=[];for(const light of this.lights)light.intensity=0;}
   destroy(){this.clear();this.lightRoot.removeFromParent();for(const light of this.lights)light.dispose();this.cloud.dispose();this.glow.dispose();}

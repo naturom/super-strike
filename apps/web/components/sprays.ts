@@ -2,23 +2,10 @@ import * as THREE from 'three';
 import {surfaceDecalGeometry} from './surface-decals';
 import type {Vec3,Spray} from '@sirocco/shared';
 
-/** Original painted emblem, drawn at runtime with no external image dependency. */
-export function pingPongTexture(){
- const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d')!;
- const bat=(x:number,y:number,angle:number,color:string)=>{
-  c.save();c.translate(x,y);c.rotate(angle);c.lineJoin='round';
-  c.fillStyle='#c08d51';c.strokeStyle='#f0deba';c.lineWidth=12;c.beginPath();c.roundRect(-20,62,40,160,10);c.fill();c.stroke();
-  c.fillStyle='#252e2b';c.beginPath();c.ellipse(0,0,104,126,0,0,Math.PI*2);c.fill();c.stroke();
-  c.fillStyle=color;c.beginPath();c.ellipse(0,-2,93,114,0,0,Math.PI*2);c.fill();
-  c.strokeStyle='rgba(255,255,255,.36)';c.lineWidth=5;c.beginPath();c.ellipse(-5,-9,77,96,0,Math.PI*1.06,Math.PI*1.55);c.stroke();
-  c.strokeStyle='#765330';c.lineWidth=4;for(let j=0;j<4;j++){c.beginPath();c.moveTo(-13,110+j*23);c.lineTo(13,106+j*23);c.stroke();}c.restore();
- };
- bat(319,189,.60,'#277e91');bat(192,189,-.60,'#c54839');
- c.fillStyle='#eee9d5';c.strokeStyle='#26332c';c.lineWidth=10;c.beginPath();c.arc(340,350,48,0,Math.PI*2);c.fill();c.stroke();
- c.strokeStyle='#b6b9a7';c.lineWidth=4;c.beginPath();c.arc(334,345,36,.2,1.5);c.stroke();
- // Small transparent flecks soften the silhouette like paint on masonry.
- c.globalCompositeOperation='destination-out';for(let i=0;i<950;i++){const x=i*173%512,y=i*283%512;c.globalAlpha=.12+(i%4)*.08;c.fillRect(x,y,1+i%3,1+i%2);}c.globalAlpha=1;
- const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return texture;
+/** Transparent, tightly framed character artwork; one texture shared by all marks. */
+export function portraitSprayTexture(){
+ const texture=new THREE.TextureLoader().load('/sprays/operator-portrait.webp');
+ texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;return texture;
 }
 /** Freeze the artwork's screen-up direction from the original spray aim. */
 export function sprayRotation(surfaceNormal:THREE.Vector3,aim?:Vec3){
@@ -37,8 +24,8 @@ export function sprayRotation(surfaceNormal:THREE.Vector3,aim?:Vec3){
 }
 
 export class SprayMarks {
- private marks=new Map<number,THREE.Mesh>();private texture=pingPongTexture();
- private material=new THREE.MeshStandardMaterial({map:this.texture,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,roughness:1,side:THREE.DoubleSide});
+ private marks=new Map<number,THREE.Mesh>();private texture=portraitSprayTexture();
+ private material=new THREE.MeshStandardMaterial({map:this.texture,transparent:true,alphaTest:.03,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,roughness:1,side:THREE.DoubleSide});
  constructor(private scene:THREE.Scene){}
  sync(sprays:Spray[],map:THREE.Object3D){
   const ids=new Set(sprays.map(s=>s.id));for(const [id,mesh] of this.marks)if(!ids.has(id)){mesh.removeFromParent();mesh.geometry.dispose();this.marks.delete(id);}

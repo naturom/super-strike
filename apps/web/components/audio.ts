@@ -66,7 +66,7 @@ export class GameAudio {
     while(this.explosionSources.size>=8){const oldest=this.explosionSources.values().next().value!;oldest.stop();this.explosionSources.delete(oldest);}
     const distance=Math.hypot(at.x-this.listener.x,at.y-this.listener.y,at.z-this.listener.z),source=c.createBufferSource(),filter=c.createBiquadFilter();
     filter.type='lowpass';filter.frequency.value=occluded?650:Math.max(900,15000/(1+distance*.045));filter.Q.value=.55;
-    route.gain.value*=occluded?.42:1;source.buffer=buffer;this.explosionSources.add(source);source.connect(filter).connect(route);source.start(c.currentTime+Math.min(.4,distance/343));
+    route.gain.value*=(occluded?.42:1)*(kind==='grenade'?1.08:1);source.buffer=buffer;this.explosionSources.add(source);source.connect(filter).connect(route);source.start(c.currentTime+Math.min(.4,distance/343));
     source.onended=()=>{this.explosionSources.delete(source);source.disconnect();filter.disconnect();route.disconnect();};
   }
   private explosionBuffer(c:AudioContext,kind:ExplosionKind){let buffer=this.explosionBuffers.get(kind);if(!buffer){const signal=explosionSignal(c.sampleRate,kind);buffer=c.createBuffer(1,signal.length,c.sampleRate);buffer.getChannelData(0).set(signal);this.explosionBuffers.set(kind,buffer);}return buffer;}

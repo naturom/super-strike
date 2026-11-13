@@ -9,6 +9,12 @@ function ticks(s:Simulation,n:number,inputs:[Player,Partial<Input>][]=[]){for(le
 const plant={weapon:'bomb' as const,fire:true};
 const siteA=MAPS.dunes.bombSites!.find(s=>s.id==='A')!.marker,siteB=MAPS.dunes.bombSites!.find(s=>s.id==='B')!.marker;
 function planted(){const f=fixture();Object.assign(f.red,siteA);ticks(f.s,98,[[f.red,plant]]);assert.equal(f.s.bomb?.status,'planted');return f;}
+test('C4 deaths announce the planter, victim and method even after the planter leaves',()=>{
+ const {s,red,blue}=planted();assert.deepEqual(s.bomb!.planter,{id:red.id,name:red.name});
+ const copy=s.snapshot();copy.bombs[0].planter!.name='Changed';assert.equal(s.bomb!.planter!.name,'Red');
+ const planterId=red.id;s.remove(red.id);Object.assign(blue,siteA);s.time=s.bomb!.explodeAt-DT*1000;s.step();
+ const deaths=s.events.filter(e=>e.type==='kill');assert.equal(deaths.length,1);assert.equal(deaths[0].shooter,planterId);assert.equal(deaths[0].name,'Red');assert.equal(deaths[0].target,blue.id);assert.equal(deaths[0].victim,'Blue');assert.equal(deaths[0].victimTeam,'blue');assert.equal(deaths[0].weapon,'bomb');assert.equal(blue.hp,0);assert.equal(s.winner,'red');
+});
 test('one carrier per team; late joiners and attempts at the wrong site cannot plant',()=>{
  const {s,red,blue}=fixture();const other=s.add('r2','Second attacker');assert.equal(s.bomb?.carrierId,red.id);assert.equal(other.hp,0,'mid-round join waits for rematch');
  Object.assign(blue,siteA);ticks(s,110,[[blue,plant]]);assert.equal(blue.weapon,'bomb');assert.equal(s.bombs[1].status,'carried');assert.equal(s.bombs[1].action,null);assert.equal(s.bomb?.status,'carried');
