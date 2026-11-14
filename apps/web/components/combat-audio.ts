@@ -37,7 +37,8 @@ export function combatSignal(rate:number,kind:SynthSoundKind,variant=0){
  const edge=Math.ceil(rate*.001);for(let i=0;i<edge;i++){out[i]*=i/edge;out[out.length-1-i]*=i/edge;}
  return out;
 }
-export function surfaceAt(p:Vec3,solids:Solid[]):Surface{
+export function surfaceAt(p:Vec3&{climbing?:string},solids:Solid[]):Surface{
+ if(p.climbing)return 'metal';
  // Prefer the surface beneath the foot centre. Radius fallback is needed
  // when the player is supported by the front edge of a stair or crate.
  let selected:Solid|undefined;
@@ -65,9 +66,9 @@ export class FootstepTracker {
  update(p:Motion,time:number,alive=true){
   const old=this.previous,elapsed=time-this.time;this.previous={...p};this.time=time;
   if(!old||!alive||!p.grounded||!old.grounded||elapsed<=0||elapsed>250){this.distance=0;return;}
-  const d=Math.hypot(p.x-old.x,p.z-old.z),speed=d/(elapsed/1000);
+  const climbing=!!p.climbing&&p.climbing===old.climbing,d=climbing?Math.abs(p.y-old.y):Math.hypot(p.x-old.x,p.z-old.z),speed=d/(elapsed/1000);
   if(d>2||speed>12||speed<.3){this.distance=0;return;}
-  const sprint=!p.crouched&&speed>6.5,stride=p.crouched?1.3:sprint?1.8:1.5;
+  const sprint=!climbing&&!p.crouched&&speed>6.5,stride=climbing?.7:p.crouched?1.3:sprint?1.8:1.5;
   this.distance+=d;if(this.distance<stride||time-this.last<180)return;
   this.distance%=stride;this.last=time;return {crouched:!!p.crouched,sprint};
  }
@@ -80,7 +81,7 @@ export class LandingTracker {
  reset(){this.previous=undefined;this.airborneAt=null;this.peak=0;this.speed=0;}
  update(p:Motion,time:number,alive=true):{strength:number}|undefined{
   const old=this.previous,oldTime=this.time,elapsed=time-oldTime;
-  if(!alive){this.reset();return;}
+  if(!alive||p.climbing){this.reset();return;}
   this.previous={...p};this.time=time;
   if(!old||elapsed<=0||elapsed>250||Math.hypot(p.x-old.x,p.z-old.z)>2||Math.abs(p.y-old.y)>3){this.airborneAt=null;this.speed=0;this.peak=p.y;return;}
   if(!p.grounded){

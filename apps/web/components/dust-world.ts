@@ -1,9 +1,10 @@
 import {buildVehicle} from './vehicle-model';
+import {buildLadders} from './ladder-model';
 import * as THREE from 'three';
 import {DUST2,dustPoint,DUST_SCALE,SCOUT_TOWER} from '@sirocco/shared';
 import {solidTop,groundAt,type Solid} from '@sirocco/shared';
 import type {WorldArt} from './world';
-import {solidGeometry,visibleFloorGeometry} from './map-geometry';
+import {solidGeometry,visibleFloorGeometry,visibleSolidGeometry} from './map-geometry';
 import {buildDoor,weatherWall,portalTrim,streetLamp,roundedBox,wallWear,rooftopDetails,groundContact,wallSignMount,DUST_ROUTE_SIGNS,roadPaintGeometry,tunnelRoofFrame,facadeCable,DUST_CABLES} from './environment-details';
 
 export function buildDust(art:WorldArt){
@@ -24,13 +25,17 @@ export function buildDust(art:WorldArt){
   });
   const floors=DUST2.solids.filter(b=>b.kind==='floor');
   const stairWalls=DUST2.solids.filter(b=>['Tunnel stairwell west','Lower tunnels block','Western central block'].includes(b.label??''));
+  // Resolve both sides of tower/building and ladder-landing joins together.
+  // Independent boxes leave duplicate wall faces and exposed slab seams.
+  const atLadder=(b:Solid)=>b.label?.startsWith('Scout tower')||b.label?.startsWith('Mid bazaar')||b.label?.startsWith('Return ladder');
+  const ladderMasonry=DUST2.solids.filter(b=>b.kind==='floor'||atLadder(b));
   for(const b of DUST2.solids){
     // Vehicles have individually modelled bodies matching these collision bounds.
     if(b.vehicle)continue;
     if(b.style==='door'){root.add(buildDoor(art,b,gateWood,iron));continue;}
-    const geometry=b.kind==='floor'?visibleFloorGeometry(b,floors,stairWalls):solidGeometry(b);
+    const geometry=atLadder(b)?visibleSolidGeometry(b,ladderMasonry):b.kind==='floor'?visibleFloorGeometry(b,floors,stairWalls):solidGeometry(b);
     if(b.style==='road'){const uv=geometry.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*.5,uv.getY(i)*.5);}
-    if(b.kind==='wall')weatherWall(geometry,b,groundAt({x:b.x,z:b.z},floors));
+    if(b.kind==='wall'&&b.style!=='metal')weatherWall(geometry,b,groundAt({x:b.x,z:b.z},floors));
     const mesh=new THREE.Mesh(geometry,material(b));mesh.castShadow=b.kind!=='floor';mesh.receiveShadow=true;root.add(mesh);
     if(b.label?.startsWith('Tunnel stair tread'))box(b.w-.04,.025,.055,art.trim,b.x,b.y+b.h/2+.012,b.z-b.d/2+.028);
     if(b.kind==='crate')groundContact(art,root,b.x,b.y-b.h/2,b.z,b.w,b.d);
@@ -79,7 +84,7 @@ export function buildDust(art:WorldArt){
       if(length>5)streetLamp(art,group,-length/2+.65,base,roof,iron);
     }
   }
-  // Purpose-built tower details stay attached to the shared masonry and stair solids.
+  // Purpose-built tower details stay attached to the shared masonry and ladder hatch.
   const towerBox=(u:number,v:number,y:number,w:number,h:number,d:number,m:THREE.Material)=>{const p=dustPoint(u,v,y);return box(w,h,d,m,p.x,p.y,p.z);};
   const {deck,levels}=SCOUT_TOWER;
   for(let level=0;level<levels;level++){
@@ -88,14 +93,9 @@ export function buildDust(art:WorldArt){
     towerBox(531.6,525,y+.16,.08,.20,90*DUST_SCALE,art.trim);
     for(const v of [479.6,570.4])towerBox(567,v,y+.16,70*DUST_SCALE,.20,.08,art.trim);
     if(level<levels){
-      const at=dustPoint(568,484.3,y+2.8),glow=art.material('#efd5a4',{emissive:'#ffd39b',emissiveIntensity:.65});
+      const at=dustPoint(585,484.3,y+2.8),glow=art.material('#efd5a4',{emissive:'#ffd39b',emissiveIntensity:.65});
       box(.48,.20,.10,iron,at.x,at.y,at.z);box(.36,.11,.025,glow,at.x,at.y,at.z+.06);
-      art.sign(root,`${level*2+1} / LOOKOUT ↑`,at.x,at.y-.7,at.z+.075,0,'#3d5c55',1.5);
     }
-  }
-  for(const b of DUST2.solids.filter(b=>b.label?.startsWith('Scout tower west stair')||b.label?.startsWith('Scout tower east stair'))){
-    // Contrasting tread nosings help players read the step heights indoors.
-    box(b.w-.06,.022,.055,art.trim,b.x,b.y+b.h/2+.012,b.z+(b.label!.includes('west')?1:-1)*(b.d/2-.028));
   }
   for(const [u,v,w,d] of [[567,587,106*DUST_SCALE,.26],[567,463,106*DUST_SCALE,.26],[515,525,.26,122*DUST_SCALE],[619,525,.26,122*DUST_SCALE]])towerBox(u,v,deck+.805,w,.10,d,art.trim);
   // Beams terminate on the four canopy piers rather than floating beyond the roof.
@@ -120,6 +120,7 @@ export function buildDust(art:WorldArt){
     const canopy=box(3.7,.035,1.25,teal,p.x,y+2.85,p.z+.6);canopy.rotation.x=.12;box(3.7,.16,.035,teal,p.x,y+2.78,p.z+1.22);for(const side of [-1,1]){const support=box(.028,.028,1.18,iron,p.x+side*1.65,y+2.71,p.z+.56);support.rotation.x=-.19;}
   }
   for(const b of DUST2.solids.filter(b=>b.vehicle?.part==='body'))vehicle(b);
+  buildLadders(art,root,DUST2.ladders??[]);
   // Site markings follow the shared planting bounds on each defender's floor.
   for(const site of DUST2.bombSites??[]){
     const p=site.marker;groundMark(p.x,p.y,p.z,site.id,p.size);

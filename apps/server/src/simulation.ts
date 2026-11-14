@@ -36,7 +36,7 @@ export class Simulation {
     this.falls.delete(p.id);
     const others=[...this.players.values()].filter(o=>o.id!==p.id&&o.hp>0);
     const spots=MAPS[this.mapId].spawns[p.team].map(s=>({s,safety:Math.min(...others.map(o=>Math.hypot(o.x-s.x,o.z-s.z)),100)}));spots.sort((a,b)=>b.safety-a.safety);
-    Object.assign(p,spots[0].s,{hp:100,vy:0,grounded:true,crouched:false,ammo:freshAmmo(),weapon:'rifle',primary:'rifle',secondary:'pistol',scope:undefined,grenades:2,grenadeThrow:undefined,reloadUntil:0,respawnAt:0,death:undefined,protectedUntil:this.time+1500,yaw:MAPS[this.mapId].spawnYaw?.[p.team]??(p.team==='red'?0:Math.PI),pitch:0});
+    Object.assign(p,spots[0].s,{hp:100,vy:0,grounded:true,crouched:false,ammo:freshAmmo(),weapon:'rifle',primary:'rifle',secondary:'pistol',scope:undefined,grenades:2,grenadeThrow:undefined,reloadUntil:0,respawnAt:0,death:undefined,climbing:undefined,protectedUntil:this.time+1500,yaw:MAPS[this.mapId].spawnYaw?.[p.team]??(p.team==='red'?0:Math.PI),pitch:0});
     this.queues.set(p.id,[]);this.trigger.delete(p.id);this.actions.set(p.id,{interact:false,throwAt:0});this.nextShot.set(p.id,this.time+100);
     // Assign an unclaimed charge before play starts. Full game resets rebuild
     // both charges after everyone has spawned.
@@ -56,9 +56,10 @@ export class Simulation {
       // Track each uninterrupted fall on every map, regardless of its starting
       // surface. Include the jump apex and use movement's actual landing height.
       if(wasGrounded)this.falls.delete(p.id);
-      Object.assign(p,move(p,controls,this.solids));
+      Object.assign(p,move(p,controls,this.solids,MAPS[this.mapId].ladders));
       const peak=Math.max(this.falls.get(p.id)?.height??fromY,fromY,p.y);
-      if(p.grounded){this.falls.delete(p.id);const amount=fallDamage(peak-p.y);if(amount)this.damage(p,amount,p,p.weapon,p,undefined,'fall');}
+      if(p.climbing)this.falls.delete(p.id);
+      else if(p.grounded){this.falls.delete(p.id);const amount=fallDamage(peak-p.y);if(amount)this.damage(p,amount,p,p.weapon,p,undefined,'fall');}
       else this.falls.set(p.id,{height:peak});
       if(p.hp<=0)continue;
       if(!i||!p.connected)continue;

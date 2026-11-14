@@ -33,14 +33,14 @@ function wallVolumes(b:Solid):Plane[][]{
   });
 }
 
-/** Render the union of shared box/ramp volumes, retaining the underside of raised bridges.
+/** Render the union of shared box/ramp/polygon volumes, retaining the underside of raised bridges.
  * Clipping covered faces prevents both coplanar depth fighting and buried ramp
  * faces. Collision still uses the original, identical shared floor volumes. */
 export function visibleSolidGeometry(b:Solid,floors:Solid[],walls:Solid[]=[]):THREE.BufferGeometry {
   const source=solidGeometry(b),raw=source.index?source.toNonIndexed():source;
   const positions=raw.attributes.position,normals=raw.attributes.normal;
   const output:number[]=[],normalOutput:number[]=[],uv:number[]=[];
-  const ownIndex=floors.indexOf(b),others=floors.map((other,index)=>({other,index,planes:volumePlanes(other)})).filter(({other})=>other!==b&&Math.abs(other.x-b.x)<(other.w+b.w)/2+EPS&&Math.abs(other.z-b.z)<(other.d+b.d)/2+EPS);
+  const ownIndex=floors.indexOf(b),others=floors.flatMap((other,index)=>other!==b&&Math.abs(other.x-b.x)<(other.w+b.w)/2+EPS&&Math.abs(other.z-b.z)<(other.d+b.d)/2+EPS?wallVolumes(other).map(planes=>({other,index,planes})):[]);
   // Unlike a neighbouring floor, a wall owns coincident faces unconditionally.
   for(const wall of walls)if(Math.abs(wall.x-b.x)<(wall.w+b.w)/2+EPS&&Math.abs(wall.z-b.z)<(wall.d+b.d)/2+EPS){
     for(const planes of wallVolumes(wall))others.push({other:wall,index:-1,planes});

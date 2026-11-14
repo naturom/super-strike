@@ -13,6 +13,7 @@ Click **Enter the arena** to capture your mouse. Escape releases it.
 | W A S D / mouse | Move / look |
 | Left click | Use selected item: slash, fire, or throw; hold for rifle/SMG |
 | Space / Shift | Jump / sprint (cannot fire while sprinting) |
+| W / S at a ladder | Climb up / back down; Space lets go |
 | R | Reload |
 | 1 | Knife |
 | 2 / 3 | Equipped pistol / primary gun |
@@ -26,6 +27,8 @@ Click **Enter the arena** to capture your mouse. Escape releases it.
 | Escape | Menu, invite, leave |
 
 Deathmatch rounds last ten minutes or end at 30 kills. Players have 100 HP, respawn in five seconds, and cannot damage teammates. Respawns receive 1.5 seconds of protection, cancelled by firing or throwing a grenade. Rifle: 25 damage, 600 RPM, 30 rounds, 1.8-second reload. Pistol: 20 damage, maximum 300 RPM, 12 rounds, 1.2-second reload. Ammunition reserves are unlimited; magazines and reload times are enforced. The next game starts automatically after a five-second results countdown.
+
+Dust III has four marked return ladders on the **outside** of its perimeter: north, Long/east, T spawn/south and west. Walk into a ladder to climb, keep moving forward over its top landing to return to the arena, or use S to reverse and Space to let go. There are no inner perimeter ladders to climb out from. The scout tower uses an enclosed ladder from its building entrance to a guarded lookout hatch. Gold ladder symbols mark these routes on the minimap. Climbing uses shared server/client movement and metal rung sounds.
 
 Fall damage applies on both maps to any drop, including tower-to-roof, roof-to-ground, boxes and vehicles. Drops of 4 m or less are safe; damage then rises progressively to 100 HP at 15 m (5 m: 4 HP; 8 m: 26 HP; 12 m: 65 HP). The server measures each uninterrupted fall from the highest airborne foot position to the actual landing surface, including a jump apex. Landing ends that fall, so subsequent drops are measured independently. Ordinary jumps, stairs and continuous ramps are safe. Fall damage bypasses spawn protection, awards no kill/score to the falling player, and follows the normal death/body/respawn or C4 elimination rules.
 

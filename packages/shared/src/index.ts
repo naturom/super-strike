@@ -3,6 +3,8 @@ import {validAvatar} from './avatars';
 export {AVATARS,validAvatar,type AvatarId} from './avatars';
 import {DUST2} from './dust2';
 import {DEPOT} from './depot';
+import {climbLadder,type Ladder} from './ladders';
+export {nearbyLadder,type Ladder} from './ladders';
 export {DEPOT,DEPOT_CATWALK} from './depot';
 export {DUST2,dustPoint,DUST_SCALE} from './dust2';
 export {SCOUT_TOWER,scoutTowerRoute} from './scout-tower';
@@ -57,7 +59,7 @@ export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksm
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
 export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
 export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; }
-export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];}
+export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];}
 export const MAPS:Record<MapId,MapDefinition>={
   dunes:DUST2,
   relay:DEPOT,
@@ -67,7 +69,7 @@ export const validMap = (value:unknown):value is MapId => value==='dunes'||value
 export const SOLIDS=MAPS[DEFAULT_MAP].solids, SPAWNS=MAPS[DEFAULT_MAP].spawns;
 export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;}
 export const neutralInput=():Input=>({seq:0,forward:0,strafe:0,yaw:0,pitch:0,jump:false,sprint:false,fire:false,reload:false,weapon:'rifle',crouch:false,interact:false});
-export interface Motion extends Vec3 {vy:number;grounded:boolean;crouched?:boolean;}
+export interface Motion extends Vec3 {vy:number;grounded:boolean;crouched?:boolean;climbing?:string;}
 export interface DeathState {at:number;from:Vec3;vy:number;crouched:boolean;}
 export interface Player extends Motion {avatar:AvatarId;id:string;name:string;team:Team;yaw:number;pitch:number;scope?:0|1|2;hp:number;kills:number;deaths:number;weapon:Equipment;primary:Weapon;secondary?:Sidearm;ammo:Ammo;grenades:number;grenadeThrow?:import('./grenade-throw').GrenadeThrow;crouched:boolean;reloadUntil:number;respawnAt:number;protectedUntil:number;connected:boolean;ack:number;spawnId:number;death?:DeathState;/** Snapshot: remaining gun cooldown ticks × 2, plus 1 while the trigger is held. */gunState?:number;}
 export interface Grenade extends Vec3 {id:number;owner:string;team:Team;vx:number;vy:number;vz:number;explodeAt:number;}
@@ -109,8 +111,9 @@ export function intersects(p:Vec3,b:Solid,height=HEIGHT,radius=RADIUS){return fo
 export function groundAt(p:{x:number;z:number},solids:Solid[]=SOLIDS,ceiling=Infinity){
   let y=0;for(const b of solids)if(b.kind==='floor'&&footprint(p,b,.001)){const h=solidTop(b,p);if(h<=ceiling)y=Math.max(y,h);}return y;
 }
-export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS):Motion {
-  const out={...p};out.crouched=!!i.crouch||!!p.crouched&&solids.some(b=>intersects(p,b,HEIGHT));const height=heightOf(out);
+export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Ladder[]=[]):Motion {
+  const climbing=climbLadder(p,i,solids,ladders);if(climbing)return climbing;
+  const out={...p};if(out.climbing)out.climbing=undefined;out.crouched=!!i.crouch||!!p.crouched&&solids.some(b=>intersects(p,b,HEIGHT));const height=heightOf(out);
   const norm=Math.max(1,Math.hypot(i.forward,i.strafe)),speed=out.crouched?2.5:i.sprint?8:5.5;
   const dx=(-Math.sin(i.yaw)*i.forward+Math.cos(i.yaw)*i.strafe)/norm*speed*DT,dz=(-Math.cos(i.yaw)*i.forward-Math.sin(i.yaw)*i.strafe)/norm*speed*DT;
   const blocked=(point:Vec3)=>solids.some(b=>intersects(point,b,height));

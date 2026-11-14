@@ -1,4 +1,5 @@
-import {scoutTowerSolids} from './scout-tower';
+import {scoutTowerSolids,scoutTowerLadder} from './scout-tower';
+import {dustReturnLadders} from './return-ladders';
 import type {MapDefinition, Solid, Vec3} from './index';
 
 // Hand-built reconstruction from the 1024px modern Dust II radar and Valve's
@@ -64,7 +65,7 @@ poly('Tunnel south block',[[66,502],[170,502],[170,576],[139,576],[139,610],[90,
 poly('Western central block',[[330,437],[439,437],[439,536],[418,536],[418,618],[394,618],[406,691],[446,691],[446,878],[344,878],[344,773],[300,773],[300,500],[330,500]],9.2,0,'kasbah');
 rect('Tunnel courtyard east',244,575,56,198,7.5,0,'wall','kasbah');
 poly('T spawn island',[[490,670],[570,670],[590,690],[590,810],[570,835],[500,835],[480,815],[480,688]],8.8,0,'plaster');
-// Carve an occupied interior out of the bazaar instead of hiding stairs in a solid building.
+// Carve an occupied interior out of the bazaar for the tower ladder entrance.
 poly('Mid bazaar',[[548,436],[675,436],[675,464],[690,464],[690,480],[532,480],[532,454]],9.6,0,'plaster');
 poly('Mid bazaar east',[[602,480],[690,480],[690,553],[673,553],[673,570],[602,570]],9.6,0,'plaster');
 poly('Mid bazaar south',[[532,570],[673,570],[673,626],[548,626],[532,610]],9.6,0,'plaster');
@@ -190,8 +191,9 @@ vehicle('B car',174,296,39,18,1.5,2);
 vehicle('CT truck',429,148,57,23,2.1,0,true);
 
 const landmark = (name:string,u:number,v:number)=>({name,...dustPoint(u,v)});
+const returnLadders=dustReturnLadders(solids,dustPoint,DUST_SCALE);
 export const DUST2:MapDefinition={
-  id:'dunes',name:'Dust III',subtitle:'Long · Mid · Tunnels',description:'Defend the CT courtyard at A or the T terrace at B. Attack through Long, Mid and the covered tunnel routes.',solids,
+  id:'dunes',name:'Dust III',subtitle:'Long · Mid · Tunnels',description:'Defend the CT courtyard at A or the T terrace at B. Attack through Long, Mid and the covered tunnel routes.',solids,ladders:[...returnLadders,scoutTowerLadder(dustPoint,DUST_SCALE)],
   bounds:{minX:-54,maxX:54,minZ:-57,maxZ:57},
   spawns:{red:[dustPoint(380,930,3.2),dustPoint(330,930,3.2),dustPoint(430,930,3.2),dustPoint(280,930,3.2)],blue:[dustPoint(590,225),dustPoint(590,190),dustPoint(563,225),dustPoint(590,260)]},
   pickups:[{id:'west-smg',...dustPoint(380,908,3.2),weapon:'smg',availableAt:0},{id:'east-smg',...dustPoint(590,247),weapon:'smg',availableAt:0},{id:'mid-dmr',...dustPoint(461,607,2.1*(607-438)/182),weapon:'marksman',availableAt:0},{id:'court-dmr',...dustPoint(115,453,3.2),weapon:'marksman',availableAt:0},

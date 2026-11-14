@@ -1,6 +1,6 @@
 import {dustPoint,SCOUT_TOWER,type MapId} from '@sirocco/shared';
 export const MAP_TOUR=[
-  {name:'MID · SCOUT TOWER',description:'Enter from Catwalk and climb the enclosed stairs to a lookout above the rooftops.',eye:dustPoint(563,563,SCOUT_TOWER.deck+1.6),target:dustPoint(480,300,7)},
+  {name:'MID · SCOUT TOWER',description:'Enter from Catwalk and climb the enclosed ladder to a lookout above the rooftops.',eye:dustPoint(563,563,SCOUT_TOWER.deck+1.6),target:dustPoint(480,300,7)},
   {name:'A · CT COURTYARD',description:'Team B defends Site A just beside its starting area, with approaches from Mid and CT.',eye:dustPoint(590,264,2.1),target:dustPoint(548,248,.35)},
   {name:'LONG · BLUE',description:'Double doors open into the street, with Blue to one side and Pit beyond.',eye:dustPoint(866,520,3.8),target:dustPoint(710,554,4)},
   {name:'MID · DOUBLE DOORS',description:'The central sightline connects Top Mid to the CT side.',eye:dustPoint(473,510,2.8),target:dustPoint(464,300,1.9)},

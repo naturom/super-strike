@@ -13,7 +13,7 @@ import {SprayMarks} from './sprays';
 import * as THREE from 'three';
 import {Sky} from 'three/examples/jsm/objects/Sky.js';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import {direction,rayPlayer,rayTrex,GRENADE_BLAST,grenadeThrowProgress,MAPS,DEFAULT_MAP,DT,WEAPONS,gunRecoil,isSidearm,move,wallDistance,plantSite,canReachBomb,neutralInput,eyeOf,nearestPickup,weaponLabel,isGun,type AvatarId,type Team,type MapId,type Equipment,type Motion,type Input,type Snapshot,type Player,type CombatEvent} from '@sirocco/shared';
+import {nearbyLadder,direction,rayPlayer,rayTrex,GRENADE_BLAST,grenadeThrowProgress,MAPS,DEFAULT_MAP,DT,WEAPONS,gunRecoil,isSidearm,move,wallDistance,plantSite,canReachBomb,neutralInput,eyeOf,nearestPickup,weaponLabel,isGun,type AvatarId,type Team,type MapId,type Equipment,type Motion,type Input,type Snapshot,type Player,type CombatEvent} from '@sirocco/shared';
 import {tourForMap} from './map-tour';
 import {solidGeometry} from './map-geometry';
 import {GameAudio} from './audio';
@@ -130,8 +130,8 @@ export class Arena {
     if(fresh){this.resetLife(me.weapon);this.yaw=me.yaw;this.pitch=me.pitch;}
     if(this.weapon==='bomb'&&!s.bombs.some(b=>b.carrierId===me.id)){this.weapon=me.weapon==='bomb'?me.primary:me.weapon;this.fire=false;}
     if(old&&(old.primary!==me.primary||old.secondary!==me.secondary))this.weapon=me.weapon;
-    this.seq=Math.max(this.seq,me.ack);this.pending=this.pending.filter(i=>i.seq>me.ack);this.predicted={x:me.x,y:me.y,z:me.z,vy:me.vy,grounded:me.grounded,crouched:me.crouched};
-    if(me.hp>0)for(const i of this.pending)this.predicted=move(this.predicted,i,MAPS[this.mapId].solids);
+    this.seq=Math.max(this.seq,me.ack);this.pending=this.pending.filter(i=>i.seq>me.ack);this.predicted={x:me.x,y:me.y,z:me.z,vy:me.vy,grounded:me.grounded,crouched:me.crouched,climbing:me.climbing};
+    if(me.hp>0)for(const i of this.pending)this.predicted=move(this.predicted,i,MAPS[this.mapId].solids,MAPS[this.mapId].ladders);
     this.shotFeedback.sync(me,s.time,this.pending);
     if(fresh){this.camera.position.set(me.x,me.y+eyeOf(me),me.z);}
     for(const p of s.pickups){const g=this.pickups.get(p.id);if(g)g.visible=p.availableAt<=s.time;}
@@ -229,7 +229,7 @@ export class Arena {
       this.accumulator=Math.min(this.accumulator+dt,DT*3);
       while(this.accumulator>=DT){this.accumulator-=DT;const live=!!locked&&!!me&&me.hp>0&&this.snap.phase==='playing';
         const i:Input={...neutralInput(),seq:++this.seq,spawnId:me?.spawnId,scope:live&&this.scope.level?this.scope.level:undefined,forward:live?Number(this.keys.has('KeyW'))-Number(this.keys.has('KeyS')):0,strafe:live?Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA')):0,yaw:this.yaw,pitch:this.pitch,jump:live&&this.jump,sprint:live&&(this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')),fire:live&&(this.fire||this.weapon==='grenade'&&this.grenadePress),reload:live&&this.reload,weapon:this.weapon,crouch:live&&(this.keys.has('KeyC')||this.keys.has('ControlLeft')||this.keys.has('ControlRight')),summon:live&&this.summon,spray:live&&this.spray,interact:live&&(this.interact||this.keys.has('KeyE'))};
-        this.grenadePress=this.jump=this.reload=this.interact=this.spray=this.summon=false;if(me?.hp&&this.snap.phase==='playing')this.predicted=move(this.predicted,i,solids);this.pending.push(i);if(this.pending.length>90)this.pending.shift();if(me&&this.snap.phase==='playing')this.predictShot(i,me,now);this.callbacks.input(i);
+        this.grenadePress=this.jump=this.reload=this.interact=this.spray=this.summon=false;if(me?.hp&&this.snap.phase==='playing')this.predicted=move(this.predicted,i,solids,MAPS[this.mapId].ladders);this.pending.push(i);if(this.pending.length>90)this.pending.shift();if(me&&this.snap.phase==='playing')this.predictShot(i,me,now);this.callbacks.input(i);
         const gait=this.localSteps.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');
         const impact=this.localLanding.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');if(impact)this.audio.land(impact.strength,undefined,surfaceAt(this.predicted,solids));
         if(gait)this.audio.step(gait.crouched,undefined,surfaceAt(this.predicted,solids),gait.sprint);
@@ -267,6 +267,7 @@ export class Arena {
         else if(ownBomb?.carrierId===me.id&&plantSite(me,this.mapId,me.team))label=this.weapon==='bomb'?'HOLD LEFT CLICK · PLANT C4':'5 · SELECT C4 TO PLANT';
         if(enemyBomb?.status==='planted'&&canReachBomb(me,enemyBomb,solids))label='HOLD E · DEFUSE ENEMY C4';
       }
+      if(me?.hp&&nearbyLadder(this.predicted,MAPS[this.mapId].ladders??[]))label='W / S · CLIMB LADDER · SPACE · LET GO';
       if(label!==this.prompt){this.prompt=label;this.callbacks.pickup(label);}
       for(const bomb of this.snap.bombs){
         let mesh=this.bombMeshes.get(bomb.team);if(!mesh){mesh=this.art.weapon('bomb',false);this.scene.add(mesh);this.bombMeshes.set(bomb.team,mesh);}

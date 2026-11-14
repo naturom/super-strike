@@ -2,8 +2,8 @@ import {surfaceAt} from '../apps/web/components/combat-audio';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {DUST2,footprint,solidTop,intersects,groundAt,dustPoint,move,neutralInput,type Solid,type Motion} from '@sirocco/shared';
-import {visibleFloorGeometry} from '../apps/web/components/map-geometry';
+import {DUST2,footprint,solidTop,intersects,groundAt,dustPoint,move,neutralInput,SCOUT_TOWER,type Solid,type Motion} from '@sirocco/shared';
+import {visibleFloorGeometry,visibleSolidGeometry} from '../apps/web/components/map-geometry';
 
 const slab=(x:number,top:number,bottom=-.3):Solid=>({x,y:(top+bottom)/2,z:0,w:4,d:4,h:top-bottom,kind:'floor'});
 function horizontalArea(geometry:THREE.BufferGeometry,y:number,up=true){
@@ -113,5 +113,28 @@ test('A cobblestone/road boundary footsteps match the floor that is actually ren
   const p=dustPoint(u,v);p.y=groundAt(p,DUST2.solids);ray.set(new THREE.Vector3(p.x,20,p.z),new THREE.Vector3(0,-1,0));const hit=ray.intersectObjects(meshes)[0];assert.ok(hit);
   const floor=floors[meshes.findIndex(mesh=>mesh===hit.object)];assert.equal(surfaceAt(p,DUST2.solids),floor.style==='road'?'asphalt':'stone',`audio differs from visible ${floor.label} at ${u},${v}`);
  }
+ meshes.forEach(m=>m.geometry.dispose());material.dispose();
+});
+
+
+test('tower, bazaar and ladder hatch joins have one visible surface without ceiling gaps',()=>{
+ const volumes=DUST2.solids.filter(b=>b.kind==='floor'||b.label?.startsWith('Scout tower')||b.label?.startsWith('Mid bazaar'));
+ const material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
+ const meshes=volumes.filter(b=>b.label?.startsWith('Scout tower')||b.label?.startsWith('Mid bazaar')).map(b=>new THREE.Mesh(visibleSolidGeometry(b,volumes),material));
+ const ray=new THREE.Raycaster();
+ const probes:[number,number,number,number,number,number][]=[
+  [567.37,500.23,5.71,0,0,-1],[585.37,520.23,7.13,1,0,0],[567.37,530.23,7.13,0,0,1],
+  [558.27,490.23,SCOUT_TOWER.deck-1,0,1,0],[575.73,490.23,SCOUT_TOWER.deck-1,0,1,0],
+  [567.37,508.73,SCOUT_TOWER.deck-1,0,1,0],[567.37,500.23,SCOUT_TOWER.deck+.43,0,0,1],
+ ];
+ for(const [u,v,y,dx,dy,dz] of probes){
+  const p=dustPoint(u,v,y);ray.set(new THREE.Vector3(p.x,p.y,p.z),new THREE.Vector3(dx,dy,dz));
+  const hits=ray.intersectObjects(meshes);assert.ok(hits.length,`gap at tower join ${u}, ${v}, ${y}`);
+  for(let k=1;k<hits.length;k++)assert.ok(hits[k].distance-hits[k-1].distance>1e-4,`coplanar tower faces at ${u}, ${v}, ${y}: ${hits[k].point.toArray()}`);
+ }
+ // The ladder's opening itself must stay open through the ceiling.
+ const ladder=DUST2.ladders!.find(l=>l.id==='scout-tower')!;
+ ray.set(new THREE.Vector3(ladder.x,SCOUT_TOWER.deck-1,ladder.z),new THREE.Vector3(0,1,0));ray.far=2;
+ assert.equal(ray.intersectObjects(meshes).length,0,'ceiling must not seal the ladder hatch');
  meshes.forEach(m=>m.geometry.dispose());material.dispose();
 });
