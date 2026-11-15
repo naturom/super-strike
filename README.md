@@ -30,6 +30,8 @@ Deathmatch rounds last ten minutes or end at 30 kills. Players have 100 HP, resp
 
 Dust III has four marked return ladders on the **outside** of its perimeter: north, Long/east, T spawn/south and west. Walk into a ladder to climb, keep moving forward over its top landing to return to the arena, or use S to reverse and Space to let go. There are no inner perimeter ladders to climb out from. The scout tower uses an enclosed ladder from its building entrance to a guarded lookout hatch. Gold ladder symbols mark these routes on the minimap. Climbing uses shared server/client movement and metal rung sounds.
 
+Anyone in a room can use **Randomize teams** beside Change map to shuffle the entire roster into balanced teams and start a fresh game on the current map. With an odd player count, either team can receive the extra player. Team appearances, spawns and C4 carriers follow the new assignment. The invitation link, player identities, game mode and More fun setting stay with the room. Disconnected seats retain their new assignment when reconnecting.
+
 Anyone in a room can use **Change map** in the pause menu (Esc) or the end-of-game screen. Switching starts a fresh game for everyone while keeping the same room, invitation link, player identities, teams, game mode, character choices and More fun setting. Health, loadouts, scores and map objects reset. Reconnecting and later joins use the room’s current map.
 
 Team radio plays “Go, go, go!” when entering each new game and when the next game starts. Actual grenade releases play “Fire in the hole!” to the thrower and their teammates, at radio volume regardless of distance. Holding or cancelling a grenade does not announce a throw. The sound toggle mutes the calls along with the other effects.

@@ -1,3 +1,4 @@
+import {assignRandomTeams} from './team-assignment';
 import {DogSimulation} from './dog-simulation';
 import {flowerPickupIds} from './flower-guns';
 import {TrexSimulation} from './trex-simulation';
@@ -270,11 +271,17 @@ export class Simulation {
   rematch(){if(this.phase!=='finished')return;this.wildlife.clear();this.companions.clear();this.round++;this.sprays=[];this.impacts=[];this.scores={red:0,blue:0};this.phase='playing';this.nextRoundAt=0;this.winner=null;this.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;this.roundLive=false;this.outcome='';this.bombIntents.clear();this.grenades=[];this.pickups=MAPS[this.mapId].pickups.map(p=>({...p}));this.flowerRacks=this.moreFun?flowerPickupIds(this.pickups):new Set();for(const p of this.players.values()){p.dogUsed=undefined;p.kills=0;p.deaths=0;this.spawn(p);}if(this.mode==='defusal')this.resetBomb();}
   changeMap(mapId:MapId):Simulation {
     if(mapId===this.mapId)return this;
+    return this.newGame(mapId);
+  }
+  randomizeTeams(choose?:(max:number)=>number):Simulation {
+    return this.newGame(this.mapId,assignRandomTeams(this.players.values(),choose));
+  }
+  private newGame(mapId:MapId,teams?:ReadonlyMap<string,Team>):Simulation {
     const next=new Simulation(mapId,this.mode,this.teamAvatars,this.moreFun);
     next.time=this.time;next.round=this.round+1;next.eventId=this.eventId;next.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;
     for(const old of this.players.values()){
       const player=next.add(old.id,old.name);
-      player.team=old.team;player.connected=old.connected;player.spawnId=old.spawnId;
+      player.team=teams?.get(old.id)??old.team;player.connected=old.connected;player.spawnId=old.spawnId;
       const sequence=Math.max(old.ack,this.lastSeq.get(old.id)??0);player.ack=sequence;next.lastSeq.set(old.id,sequence);
       next.spawn(player);
     }

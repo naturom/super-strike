@@ -13,7 +13,7 @@ export class ArenaRoom extends Room {
   private budgets=new Map<string,{start:number;count:number}>();
   private idle=new Map<string,number>();
   private surfaceClients=new Map<string,SurfaceCursor>();
-  private mapChangedAt=-Infinity;
+  private gameChangedAt=-Infinity;
   private profileExpiry?:{clear():void};
   onCreate(options:{invite:string;awaitProfile?:boolean}) {
     const invitation=inviteSigner.verify(options.invite);this.inviteId=invitation.id;this.sim=new Simulation(invitation.mapId!,invitation.mode,invitation.teamAvatars,invitation.moreFun);
@@ -57,20 +57,30 @@ export class ArenaRoom extends Room {
       if(!validMap(mapId)){reject('Choose a valid map.');return;}
       if(mapId===this.sim.mapId){client.send('mapChanged',{mapId,changed:false});return;}
       if(this.sim.mode==='defusal'&&!MAPS[mapId].bombSites?.length){reject('This map does not support bomb defusal.');return;}
-      if(Date.now()-this.mapChangedAt<1500){reject('Please wait a moment before switching maps again.');return;}
+      if(Date.now()-this.gameChangedAt<1500){reject('Please wait a moment before switching maps again.');return;}
       const by=this.sim.players.get(client.sessionId)!.name;
-      this.sim=this.sim.changeMap(mapId);this.mapChangedAt=Date.now();this.idle.set(client.sessionId,Date.now());
-      const state=this.sim.snapshot();
-      for(const peer of this.clients){const cursor=this.surfaceClients.get(peer.sessionId);if(cursor)peer.send('surfaceUpdates',cursor.next(state,true));}
-      this.broadcast('snapshot',state);
+      this.restart(this.sim.changeMap(mapId));this.idle.set(client.sessionId,Date.now());
       this.broadcast('mapChanged',{mapId,by,changed:true});
       log('map_changed',{room:this.roomId,match:this.sim.matchId,map:mapId});
+    });
+    this.onMessage('randomizeTeams',(client)=>{
+      const player=this.sim.players.get(client.sessionId),reject=(message:string)=>client.send('teamChangeError',{message});
+      if(!this.allow(client.sessionId)||!player?.connected){reject('Unable to randomize teams right now.');return;}
+      if(Date.now()-this.gameChangedAt<1500){reject('Please wait a moment before changing the room again.');return;}
+      this.restart(this.sim.randomizeTeams());this.idle.set(client.sessionId,Date.now());
+      this.broadcast('teamsRandomized',{by:player.name});
+      log('teams_randomized',{room:this.roomId,match:this.sim.matchId});
     });
     // Older clients can still send a saved preference; team identity always wins.
     this.onMessage('appearance',(client)=>{if(!this.allow(client.sessionId))return;const player=this.sim.players.get(client.sessionId);if(player)player.avatar=this.sim.teamAvatars[player.team];});
     // Cached clients may still show the old vote button; it cannot skip the countdown.
     this.onMessage('rematch',()=>{});
     log('room_created',{room:this.roomId,match:this.sim.matchId});
+  }
+  private restart(next:Simulation){
+    this.sim=next;this.gameChangedAt=Date.now();const state=this.sim.snapshot();
+    for(const peer of this.clients){const cursor=this.surfaceClients.get(peer.sessionId);if(cursor)peer.send('surfaceUpdates',cursor.next(state,true));}
+    this.broadcast('snapshot',state);
   }
   onAuth(_client:Client,options:{invite:string;nickname:string}) {
     if(inviteSigner.verify(options.invite).id!==this.inviteId)throw new ServerError(403,'Wrong invitation');
