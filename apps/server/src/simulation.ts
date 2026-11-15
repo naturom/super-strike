@@ -191,7 +191,7 @@ export class Simulation {
         g.vy-=16*DT/2;
         for(const [axis,v] of [['x','vx'],['y','vy'],['z','vz']] as const){
           const delta=g[v]*DT/2,before=g[axis];g[axis]+=delta;
-          const blocked=()=>this.solids.some(b=>intersects({x:g.x,y:g.y-.12,z:g.z},b,.24,.12));
+          const blocked=()=>this.solids.some(b=>b.style!=='water'&&intersects({x:g.x,y:g.y-.12,z:g.z},b,.24,.12));
           if(blocked()){let lo=0,hi=1;for(let n=0;n<9;n++){const t=(lo+hi)/2;g[axis]=before+delta*t;if(blocked())hi=t;else lo=t;}g[axis]=before+delta*lo;g[v]*=-.48;}
         }
         if(g.y<.12){g.y=.12;g.vy=Math.abs(g.vy)*.42;g.vx*=.8;g.vz*=.8;if(g.vy<.4)g.vy=0;}

@@ -18,4 +18,20 @@ export const DEPOT_TOUR=[
  {name:'NORTH · SERVICE LANE',description:'A fast flank along the back of the loading bays, with no direct line into the opposite spawn.',eye:{x:-17,y:1.6,z:-14.5},target:{x:10,y:1.4,z:-14.5}},
  {name:'EAST · DEFEND A',description:'Team B defends Dispatch and Site A. Attack through the yard, bridge or service doors.',eye:{x:8,y:1.6,z:-10},target:{x:14,y:1.2,z:-6}},
 ];
-export const tourForMap=(map:MapId)=>map==='relay'?DEPOT_TOUR:MAP_TOUR;
+export const ISLAND_TOUR=[
+ {name:'ISLAND · OVERVIEW',description:'A mid-sized island with dense jungle, sandy coves and three connected routes.',eye:{x:63,y:54,z:64},target:{x:0,y:0,z:0}},
+ {name:'JUNGLE · CENTRAL CLEARING',description:'Large mossy rocks split the middle route. Ferns and saplings provide concealment along either flank.',eye:{x:-11,y:1.7,z:10},target:{x:9,y:2,z:2}},
+ {name:'COAST · SOUTH COVE',description:'Follow the sandy edge around the forest and reconnect with the southern jungle trail.',eye:{x:-8,y:1.7,z:35},target:{x:16,y:2,z:27}},
+ {name:'PALMS · NORTH TRAIL',description:'A quieter approach through palms, tall trees and fallen timber.',eye:{x:-24,y:1.7,z:-19},target:{x:2,y:3,z:-27}},
+ {name:'WEST CAMP · DEFEND B',description:'Team A starts in a sheltered clearing beside Site B and its weapon supplies.',eye:{x:-40,y:1.7,z:18},target:{x:-25,y:2,z:13}},
+ {name:'EAST CAMP · DEFEND A',description:'Team B protects Site A. Branch into the central clearing or circle through the coast.',eye:{x:40,y:1.7,z:-18},target:{x:24,y:2,z:-10}},
+];
+export const MARKET_TOUR=[
+ {name:'NIGHT MARKET · OVERVIEW',description:'Lantern streets, colourful shophouses and a covered food pavilion, with two back-alley flanks.',eye:{x:35,y:39,z:40},target:{x:0,y:0,z:0}},
+ {name:'LANTERN STREET · FOOD PAVILION',description:'Move through the stalls or circle the covered pavilion. Warm lanterns keep the main street readable.',eye:{x:-10,y:1.7,z:8},target:{x:8,y:2.6,z:1}},
+ {name:'WEST GATE · DEFEND B',description:'Team A protects Site B near its supplies. Delivery carts shelter the approach to the food hall.',eye:{x:-29,y:1.7,z:1},target:{x:-10,y:2,z:-7}},
+ {name:'NORTH · TEA HOUSE ALLEY',description:'A quieter flank behind the shops connects through the gaps on either side of the tea house.',eye:{x:-19,y:1.7,z:-23.5},target:{x:16,y:2,z:-23.5}},
+ {name:'FOOD HALL · COVERED AISLE',description:'Serving counters and kitchen equipment create close-range cover beneath the tiled pavilion roof.',eye:{x:-4.4,y:1.7,z:4},target:{x:-3,y:1.5,z:-4}},
+ {name:'EAST GATE · DEFEND A',description:'Team B defends the east gate. Approach through Lantern Street or the arcade-side alley.',eye:{x:29,y:1.7,z:-1},target:{x:10,y:2,z:7}},
+];
+export const tourForMap=(map:MapId)=>map==='market'?MARKET_TOUR:map==='island'?ISLAND_TOUR:map==='relay'?DEPOT_TOUR:MAP_TOUR;

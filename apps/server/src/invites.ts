@@ -11,14 +11,16 @@ export function signer(secret:string) {
       const [body,sig,extra]=token.split('.');if(!body||!sig||extra)throw new Error('Invalid invitation');
       const expected=Buffer.from(sign(body));const actual=Buffer.from(sig);
       if(expected.length!==actual.length||!timingSafeEqual(expected,actual))throw new Error('Invalid invitation');
-      let data:Invite;try{data=JSON.parse(Buffer.from(body,'base64url').toString());}catch{throw new Error('Invalid invitation');}
+      let data:Omit<Invite,'mapId'>&{mapId?:unknown};try{data=JSON.parse(Buffer.from(body,'base64url').toString());}catch{throw new Error('Invalid invitation');}
       if(data.v!==1||! /^[a-f0-9]{32}$/.test(data.id)||!Number.isSafeInteger(data.exp)||data.exp<=now)throw new Error('Invitation expired. Create a new room.');
-      if(data.mapId!==undefined&&!validMap(data.mapId))throw new Error('Invalid map');
+      // Retired map invitations retain their identity and use the default arena.
+      const mapId=data.mapId==='snowbound'?DEFAULT_MAP:data.mapId===undefined?'relay':data.mapId;
+      if(!validMap(mapId))throw new Error('Invalid map');
       if(data.mode!==undefined&&!validMode(data.mode))throw new Error('Invalid mode');
-      if(data.mode==='defusal'&&!MAPS[data.mapId??'relay'].bombSites?.length)throw new Error('This map has no bomb sites');
+      if(data.mode==='defusal'&&!MAPS[mapId].bombSites?.length)throw new Error('This map has no bomb sites');
       if(data.teamAvatars!==undefined&&!validTeamAvatars(data.teamAvatars))throw new Error('Invalid team characters');
       if(data.moreFun!==undefined&&typeof data.moreFun!=='boolean')throw new Error('Invalid More fun setting');
-      return {...data,moreFun:data.moreFun??true,teamAvatars:{...(data.teamAvatars??DEFAULT_TEAM_AVATARS)},mapId:data.mapId??'relay',mode:data.mode??'deathmatch'};
+      return {...data,moreFun:data.moreFun??true,teamAvatars:{...(data.teamAvatars??DEFAULT_TEAM_AVATARS)},mapId,mode:data.mode??'deathmatch'};
     }
   };
 }

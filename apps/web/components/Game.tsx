@@ -42,7 +42,7 @@ export default function Game(){
     let cancelled=false;
     setName(localStorage.getItem('sirocco-name')??'');const token=new URLSearchParams(location.hash.slice(1)).get('invite')??'';setInvite(token);inviteRef.current=token;if(token)setScreen('profile');
     client.current=new Client(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);
-    if(token){try{const payload=JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));setMoreFun(payload.moreFun!==false);if(validTeamAvatars(payload.teamAvatars))setTeamAvatars(payload.teamAvatars);const mapId=validMap(payload.mapId)?payload.mapId:'relay';selectedMapRef.current=mapId;setSelectedMap(mapId);setSelectedMode(payload.mode==='defusal'?'defusal':'deathmatch');}catch{}}
+    if(token){try{const payload=JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));setMoreFun(payload.moreFun!==false);if(validTeamAvatars(payload.teamAvatars))setTeamAvatars(payload.teamAvatars);const mapId=validMap(payload.mapId)?payload.mapId:payload.mapId==='snowbound'?DEFAULT_MAP:'relay';selectedMapRef.current=mapId;setSelectedMap(mapId);setSelectedMode(payload.mode==='defusal'?'defusal':'deathmatch');}catch{}}
     if(token)void fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'inspect',invite:token}),signal:AbortSignal.timeout(10000)}).then(async response=>{
       if(!response.ok)return;const data=await response.json();if(cancelled)return;
       if(validMap(data.mapId)){selectedMapRef.current=data.mapId;setSelectedMap(data.mapId);arena.current?.setMap(data.mapId);}
@@ -145,7 +145,7 @@ export default function Game(){
       <div className="lobby-shade"/>
       <header className="topbar"><a className="brand" href="/" aria-label="Super Strike home"><span className="brand-mark">╱╱</span> SUPER STRIKE<span className="brand-sub">MULTIPLAYER FPS</span></a><div className="top-meta"><span className="dot"/> ASIA / SINGAPORE <span className="build">BUILD 03</span></div></header>
       <section className="lobby">
-        <div className="intro"><div className="eyebrow"><span className="tiny-line"/> {screen==='profile'?'OPERATOR PROFILE / 02':selectedMap==='relay'?'INDUSTRIAL OPERATIONS / 01':'DESERT OPERATIONS / 01'}</div><h1>{screen==='profile'?<>Make your <em>name count.</em></>:<>Hold your ground.<br/><em>Own the dust.</em></>}</h1><div className="mode-tags"><span>4 VS 4</span><span>{defusal?'BOMB DEFUSAL':'TEAM DEATHMATCH'}</span><span>NO DOWNLOAD</span></div>
+        <div className="intro"><div className="eyebrow"><span className="tiny-line"/> {screen==='profile'?'OPERATOR PROFILE / 02':selectedMap==='market'?'AFTER DARK / 01':selectedMap==='island'?'JUNGLE OPERATIONS / 01':selectedMap==='relay'?'INDUSTRIAL OPERATIONS / 01':'DESERT OPERATIONS / 01'}</div><h1>{screen==='profile'?<>Make your <em>name count.</em></>:<>Hold your ground.<br/><em>Own the dust.</em></>}</h1><div className="mode-tags"><span>4 VS 4</span><span>{defusal?'BOMB DEFUSAL':'TEAM DEATHMATCH'}</span><span>NO DOWNLOAD</span></div>
           {screen==='room'?<form className="join-card" onSubmit={e=>{e.preventDefault();void createRoom();}}>
             <div className="card-heading"><span>CREATE YOUR ROOM</span></div>
             <fieldset className="map-select" disabled={busy}><legend>CHOOSE YOUR MAP</legend><div>{Object.values(MAPS).map(m=><button type="button" key={m.id} aria-pressed={selectedMap===m.id} onClick={()=>{selectMap(m.id);}}><strong>{m.name}</strong><small>{m.subtitle}</small></button>)}</div></fieldset>

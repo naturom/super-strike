@@ -49,7 +49,8 @@ export function surfaceAt(p:Vec3&{climbing?:string},solids:Solid[]):Surface{
   for(const b of solids){const h=solidTop(b,p);if(Math.abs(h-p.y)<.18&&footprint(p,b,radius)&&h>top+1e-5){selected=b;top=h;}}
   if(selected)break;
  }
- if(selected?.style==='metal')return 'metal';if(selected?.kind==='crate'||selected?.style==='door')return 'wood';
+ if(selected?.style==='metal')return 'metal';if(selected?.kind==='crate'||selected?.style==='door'||selected?.style==='wood')return 'wood';
+ if(selected?.style==='earth'||selected?.style==='sand')return 'grit';
  // Roads have dedicated asphalt recordings; paving keeps its stone sound.
  return !selected?'grit':selected.style==='road'?'asphalt':'stone';
 }

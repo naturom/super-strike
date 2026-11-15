@@ -3,6 +3,10 @@ import {validAvatar} from './avatars';
 export {AVATARS,validAvatar,type AvatarId} from './avatars';
 import {DUST2} from './dust2';
 import {DEPOT} from './depot';
+import {JUNGLE_ISLAND} from './island';
+import {NIGHT_MARKET} from './night-market';
+export {NIGHT_MARKET,MARKET_SHOPS,MARKET_STRINGS} from './night-market';
+export {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_COAST,ISLAND_SIZE,ISLAND_PATHS,islandRadius,islandCoast,islandPathDistance} from './island';
 import {climbLadder,type Ladder} from './ladders';
 export {nearbyLadder,type Ladder} from './ladders';
 export {DEPOT,DEPOT_CATWALK} from './depot';
@@ -33,7 +37,7 @@ export const BOMB_RULES={plantMs:3200,fuseMs:40000,defuseMs:10000,range:2.2} as 
 export interface BombSite {id:'A'|'B';x:number;z:number;w:number;d:number;minY:number;maxY:number;marker:Vec3&{size:number};}
 export const BOMB_TARGET:Record<Team,'A'|'B'>={red:'A',blue:'B'};
 export interface BombState extends Vec3 {team:Team;status:'carried'|'dropped'|'planted'|'defused'|'exploded';carrierId:string|null;planter?:{id:string;name:string};siteId:'A'|'B'|null;explodeAt:number;action:{kind:'plant'|'defuse';playerId:string;startedAt:number;completeAt:number}|null;}
-export type MapId = 'dunes' | 'relay';
+export type MapId = 'dunes' | 'relay' | 'island' | 'market';
 export type Vec3 = { x: number; y: number; z: number };
 export const TICK_RATE = 30, DT = 1 / TICK_RATE, SNAPSHOT_RATE = 20;
 export const ROUND_MS = 10 * 60 * 1000, WIN_SCORE = 30;
@@ -58,15 +62,17 @@ export type Ammo=Record<'rifle'|'pistol'|'smg'|'marksman',number>&Partial<Record
 export const freshAmmo=():Ammo=>({rifle:30,pistol:12,smg:0,marksman:0});
 export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksman:.065,ak47:.055,m4a1s:.025,p90:.018,scar:.060,m249:.047,deagle:.080})[weapon];
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
-export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
+export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'|'earth'|'sand'|'wood'|'water'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
 export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; }
 export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];}
 export const MAPS:Record<MapId,MapDefinition>={
   dunes:DUST2,
   relay:DEPOT,
+  island:JUNGLE_ISLAND,
+  market:NIGHT_MARKET,
 };
 export const DEFAULT_MAP:MapId='dunes';
-export const validMap = (value:unknown):value is MapId => value==='dunes'||value==='relay';
+export const validMap = (value:unknown):value is MapId => value==='dunes'||value==='relay'||value==='island'||value==='market';
 export const SOLIDS=MAPS[DEFAULT_MAP].solids, SPAWNS=MAPS[DEFAULT_MAP].spawns;
 export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;dog?:boolean;}
 export const neutralInput=():Input=>({seq:0,forward:0,strafe:0,yaw:0,pitch:0,jump:false,sprint:false,fire:false,reload:false,weapon:'rifle',crouch:false,interact:false});
@@ -168,6 +174,7 @@ export function rayPlayer(origin:Vec3,dir:Vec3,p:Motion):{distance:number;zone:H
 }
 /** Exact ray intersections for extruded polygons and ramp top planes. */
 export function raySolid(origin:Vec3,dir:Vec3,b:Solid):number|null {
+  if(b.style==='water')return null;
   const min={x:b.x-b.w/2,y:b.y-b.h/2,z:b.z-b.d/2},max={x:b.x+b.w/2,y:b.y+b.h/2,z:b.z+b.d/2};
   const broad=rayBox(origin,dir,min,max);if(broad===null)return null;if(!b.polygon&&!b.ramp)return broad;
   const candidates:number[]=[broad];
@@ -189,9 +196,10 @@ export function wallDistance(origin:Vec3,dir:Vec3,solids:Solid[]=SOLIDS){let nea
 export function impactTarget(origin:Vec3,dir:Vec3,solids:Solid[],range=150):Omit<ImpactMark,'id'|'at'|'weapon'|'expiresAt'>|undefined{
  let distance=range,solid:Solid|undefined,ground=false;
  for(const b of solids){const t=raySolid(origin,dir,b);if(t!==null&&t>1e-5&&t<=distance){distance=t;solid=b;}}
- if(dir.y<0){const t=-origin.y/dir.y;if(t>1e-5&&t<=distance){distance=t;solid=undefined;ground=true;}}
+ if(dir.y<0){const t=-origin.y/dir.y;if(t>1e-5&&t<distance-1e-5){distance=t;solid=undefined;ground=true;}}
  if(!solid&&!ground)return;
  const position={x:origin.x+dir.x*distance,y:origin.y+dir.y*distance,z:origin.z+dir.z*distance},normals:Vec3[]=[];
+ if(ground&&solids.some(s=>s.style==='water'&&footprint(position,s,0)))return;
  if(ground)normals.push({x:0,y:1,z:0});
  if(solid){
   if(Math.abs(position.y-solidTop(solid,position))<.001){const slope=solid.ramp?(solid.ramp.to-solid.ramp.from)/(solid.ramp.axis==='x'?solid.w:solid.d):0;normals.push({x:solid.ramp?.axis==='x'?-slope:0,y:1,z:solid.ramp?.axis==='z'?-slope:0});}
@@ -201,7 +209,7 @@ export function impactTarget(origin:Vec3,dir:Vec3,solids:Solid[],range=150):Omit
  }
  const normal=normals.sort((a,b)=>Math.abs(b.x*dir.x+b.y*dir.y+b.z*dir.z)-Math.abs(a.x*dir.x+a.y*dir.y+a.z*dir.z))[0];if(!normal)return;
  const length=Math.hypot(normal.x,normal.y,normal.z),sign=normal.x*dir.x+normal.y*dir.y+normal.z*dir.z>0?-1:1;
- return {position,normal:{x:normal.x/length*sign,y:normal.y/length*sign,z:normal.z/length*sign},surface:solid?.vehicle||solid?.style==='metal'?'metal':solid?.kind==='crate'||solid?.style==='door'?'wood':solid?.style==='road'?'asphalt':!solid||solid.kind==='floor'&&!['stone','tile'].includes(solid.style??'')?'sand':'stone',ray:{origin:{...origin},direction:{...dir}}};
+ return {position,normal:{x:normal.x/length*sign,y:normal.y/length*sign,z:normal.z/length*sign},surface:solid?.vehicle||solid?.style==='metal'?'metal':solid?.kind==='crate'||solid?.style==='door'||solid?.style==='wood'?'wood':solid?.style==='road'?'asphalt':!solid||solid.kind==='floor'&&!['stone','tile'].includes(solid.style??'')?'sand':'stone',ray:{origin:{...origin},direction:{...dir}}};
 }
 export function nearestPickup(p:Vec3,pickups:Pickup[],time:number,solids:Solid[]):Pickup|undefined {
   return pickups.filter(g=>g.availableAt<=time&&Math.hypot(g.x-p.x,g.z-p.z)<1.8&&Math.abs(g.y-p.y)<1).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z)).find(g=>{const d={x:g.x-p.x,y:0,z:g.z-p.z},len=Math.hypot(d.x,d.z);return len<.01||wallDistance({x:p.x,y:p.y+.6,z:p.z},{x:d.x/len,y:0,z:d.z/len},solids)>=len-.05;});

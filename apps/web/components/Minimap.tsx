@@ -8,9 +8,9 @@ export function Minimap({snapshot,me,room}:{snapshot:Snapshot;me:Player;room:Roo
   const location=map.landmarks?.reduce((a,b)=>Math.hypot(b.x-me.x,b.z-me.z)<Math.hypot(a.x-me.x,a.z-me.z)?b:a);
   return <aside className="radar" aria-label={`Map radar. Near ${location?.name??'spawn'}`}>
     <svg viewBox={`${minX} ${minZ} ${maxX-minX} ${maxZ-minZ}`} role="img" aria-label={`${map.name} layout with your position and teammates`}>
-      <rect x={minX} y={minZ} width={maxX-minX} height={maxZ-minZ} fill="#23302e"/>
-      {map.solids.filter(b=>b.kind==='floor'&&b.label!=='Foundation').map((b,i)=><rect key={`f${i}`} x={b.x-b.w/2} y={b.z-b.d/2} width={b.w} height={b.d} fill="#9caa91" opacity={.28+Math.min(.25,b.y*.09)}/>)}
-      {map.solids.filter(b=>b.kind==='wall'||b.kind==='crate').map((b,i)=>b.polygon?<polygon key={i} points={b.polygon.map(([x,z])=>point(x,z)).join(' ')} fill="#151e1c" stroke="#bcc1a2" strokeWidth=".2"/>:<rect key={i} x={b.x-b.w/2} y={b.z-b.d/2} width={b.w} height={b.d} fill="#151e1c" stroke="#bcc1a2" strokeWidth=".2"/>)}
+      <rect x={minX} y={minZ} width={maxX-minX} height={maxZ-minZ} fill={map.id==='market'?'#24283c':map.id==='island'?'#24515a':'#23302e'}/>
+      {map.solids.filter(b=>b.kind==='floor'&&b.label!=='Foundation').map((b,i)=>b.polygon?<polygon key={`f${i}`} points={b.polygon.map(([x,z])=>point(x,z)).join(' ')} fill="#7e9165"/>:<rect key={`f${i}`} x={b.x-b.w/2} y={b.z-b.d/2} width={b.w} height={b.d} fill="#9caa91" opacity={.28+Math.min(.25,b.y*.09)}/>)}
+      {map.solids.filter(b=>b.style!=='water'&&(b.kind==='wall'||b.kind==='crate')).map((b,i)=>b.polygon?<polygon key={i} points={b.polygon.map(([x,z])=>point(x,z)).join(' ')} fill="#151e1c" stroke="#bcc1a2" strokeWidth=".2"/>:<rect key={i} x={b.x-b.w/2} y={b.z-b.d/2} width={b.w} height={b.d} fill="#151e1c" stroke="#bcc1a2" strokeWidth=".2"/>)}
       {map.landmarks?.filter(l=>l.name==='A'||l.name==='B').map(l=><text key={l.name} x={l.x} y={l.z} fill={snapshot.mode==='defusal'&&l.name!==BOMB_TARGET[me.team]?'#8dc9e5':'#f5c17b'} textAnchor="middle" fontSize="6" fontWeight="700">{l.name}</text>)}
       {map.ladders?.map(l=><g key={l.id} transform={`translate(${l.x} ${l.z})`}><title>{l.label} ladder</title><path d="M -1 -1 L -1 1 M 1 -1 L 1 1 M -1 -.6 L 1 -.6 M -1 .6 L 1 .6" fill="none" stroke="#f0c467" strokeWidth=".5"/></g>)}
       {snapshot.players.filter(p=>p.hp>0&&p.team===me.team&&p.id!==me.id).map(p=><circle key={p.id} cx={p.x} cy={p.z} r="1.5" fill="#8dc9e5"/>)}
