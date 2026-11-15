@@ -118,7 +118,7 @@ export class Simulation {
     if(Object.hasOwn(freshAmmo(),previous))p.ammo[previous]=0;else delete p.ammo[previous];
     if(isSidearm(pickup.weapon))p.secondary=pickup.weapon;else p.primary=pickup.weapon;
     const flowers=this.flowerInventory.get(p.id)??new Set();flowers.delete(previous);flowers.delete(pickup.weapon);if(this.flowerRacks.has(pickup.id))flowers.add(pickup.weapon);this.flowerInventory.set(p.id,flowers);
-    p.untestedWeapons=this.moreFun?[...(p.untestedWeapons??[]).filter(w=>w!==previous&&w!==pickup.weapon),pickup.weapon]:undefined;p.flowerWeapons=p.flowerWeapons?.filter(w=>w!==previous&&w!==pickup.weapon);
+    p.untestedWeapons=this.moreFun?[...(p.untestedWeapons??[]).filter(w=>w!==previous&&w!==pickup.weapon),...(!isSidearm(pickup.weapon)?[pickup.weapon]:[])]:undefined;p.flowerWeapons=p.flowerWeapons?.filter(w=>w!==previous&&w!==pickup.weapon);
     p.weapon=pickup.weapon;p.ammo[p.weapon]=WEAPONS[p.weapon].magazine;p.reloadUntil=0;p.scope=undefined;
     pickup.availableAt=this.time+20000;this.nextShot.set(p.id,this.time+300);
     this.emit('pickup',p,p.weapon,p,p,{target:p.id});

@@ -28,7 +28,7 @@ export class ShotFeedback {
   const w=WEAPONS[p.weapon];
   if(input.reload&&!p.reloadUntil&&(p.ammo[p.weapon]??0)<w.magazine)p.reloadUntil=this.time+w.reload;
   if(!input.fire||input.sprint&&!input.crouch||p.reloadUntil||(p.ammo[p.weapon]??0)<=0||!w.automatic&&was||this.time+.01<this.next)return;
-  // Every new pickup waits for the same server verdict, so a hidden flower gun
+  // Every eligible primary pickup waits for the same server verdict, so a hidden flower gun
   // never emits a speculative bullet and normal racks cannot be distinguished.
   if(p.untestedWeapons?.includes(p.weapon)||p.flowerWeapons?.includes(p.weapon)){this.next=this.time+w.interval;return;}
   p.ammo[p.weapon]=p.ammo[p.weapon]!-1;this.next=this.time+w.interval;return p.weapon;

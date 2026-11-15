@@ -16,15 +16,19 @@ function findFlower(){
  }
  throw Error('Base is missing its flower gun');
 }
-test('each map selects exactly one eligible gun per base, with all racks eligible and central guns excluded',()=>{
+test('each map selects one primary gun per base, excluding all pistols and central racks',()=>{
  for(const map of Object.values(MAPS)){
   for(const team of ['red','blue'])assert.ok(map.pickups.filter(p=>p.base===team).length>1);
   for(const choose of [(n:number)=>0,(n:number)=>n-1]){
    const ids=flowerPickupIds(map.pickups,choose);assert.equal(ids.size,2);
    for(const team of ['red','blue'])assert.equal(map.pickups.filter(p=>p.base===team&&ids.has(p.id)).length,1);
    assert.ok(map.pickups.filter(p=>!p.base).every(p=>!ids.has(p.id)));
+   assert.ok(map.pickups.filter(p=>ids.has(p.id)).every(p=>!isSidearm(p.weapon)));
   }
   const first=flowerPickupIds(map.pickups,()=>0),last=flowerPickupIds(map.pickups,n=>n-1);assert.ok([...first].every(id=>!last.has(id)));
+  const eligible=map.pickups.filter(p=>p.base&&!isSidearm(p.weapon)),seen=new Set<string>();
+  for(let i=0;i<eligible.length;i++)for(const id of flowerPickupIds(map.pickups,n=>i%n))seen.add(id);
+  assert.deepEqual([...seen].sort(),eligible.map(p=>p.id).sort());
  }
 });
 test('rack and inventory snapshots keep the surprise hidden until firing; exactly one gun per base blooms',()=>{
@@ -35,13 +39,30 @@ test('rack and inventory snapshots keep the surprise hidden until firing; exactl
    let flowers=0;
    for(const rack of s.pickups.filter(p=>p.base===team)){
     s.spawn(p);Object.assign(p,{x:rack.x,y:rack.y,z:rack.z});s.pickup(p);
-    const before=s.snapshot().players[0];assert.deepEqual(before.untestedWeapons,[rack.weapon]);assert.ok(!before.flowerWeapons?.length);
+    const before=s.snapshot().players[0];assert.deepEqual(before.untestedWeapons,isSidearm(rack.weapon)?[]:[rack.weapon]);assert.ok(!before.flowerWeapons?.length);
     const magazine=p.ammo[rack.weapon];s.events=[];s.fire(p);
     assert.equal(p.untestedWeapons?.length,0);
     if(s.events.some(e=>e.type==='flower')){flowers++;assert.equal(p.ammo[rack.weapon],magazine);assert.deepEqual(p.flowerWeapons,[rack.weapon]);assert.equal(s.events.length,1);}
     else{assert.equal(s.events[0].type,'shot');assert.equal(p.ammo[rack.weapon],magazine!-1);}
    }
    assert.equal(flowers,1,`${mapId} ${team}`);
+  }
+ }
+});
+test('bases containing only pistols have no flower selection',()=>{
+ const racks=[{id:'p12',base:'red' as const,weapon:'pistol' as const,x:0,y:0,z:0,availableAt:0},{id:'deagle',base:'blue' as const,weapon:'deagle' as const,x:2,y:0,z:0,availableAt:0}];
+ assert.equal(flowerPickupIds(racks,()=>assert.fail('pistols must not enter the draw')).size,0);
+});
+test('pistols always fire bullets and predict normally after pickups and game resets',()=>{
+ for(const map of ['dunes','relay'] as const){const sim=new Simulation(map),p=sim.add('a','Sidearm tester');sim.solids=[];
+  for(let game=0;game<3;game++){
+   for(const weapon of ['pistol','deagle'] as const){
+    sim.spawn(p);sim.pickups=[{id:weapon+'-base',base:p.team,weapon,x:p.x,y:p.y,z:p.z,availableAt:0}];sim.pickup(p);
+    assert.ok(!p.untestedWeapons?.includes(weapon));assert.ok(!p.flowerWeapons?.includes(weapon));
+    const feedback=new ShotFeedback();feedback.sync({...p,gunState:0},sim.time,[]);assert.equal(feedback.predict({...neutralInput(),seq:1,spawnId:p.spawnId,weapon,fire:true},0),weapon);
+    const ammo=p.ammo[weapon]!;sim.events=[];sim.fire(p);assert.equal(sim.events[0].type,'shot');assert.equal(p.ammo[weapon],ammo-1);assert.ok(!sim.events.some(e=>e.type==='flower'));
+   }
+   sim.phase='finished';sim.rematch();
   }
  }
 });
