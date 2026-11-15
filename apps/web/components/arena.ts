@@ -1,3 +1,4 @@
+import {TeamRadio} from './team-radio';
 import {DogModels} from './dog-model';
 import {Locomotion,firstPersonGait} from './locomotion';
 import {updateWeaponFlower} from './flower-gun';
@@ -42,6 +43,7 @@ export class Arena {
   private explosions:ExplosionEffects;private blastShake={start:0,duration:1,strength:0};
   private mirrors:SpawnMirrors;private appearance:AvatarId='ironman';private sprayMarks:SprayMarks;private spray=false;
   private dog=false;private dogModels:DogModels;
+  private teamRadio=new TeamRadio(line=>this.audio.radio(line));
   private summon=false;private hiddenInput=new HiddenInput();private trexModels:TrexModels;
   private tourIndex:number|null=null;private impactMarks:ImpactMarks;private deadBodies=new DeadBodies();
   private art:WorldArt;private audio=new GameAudio();private world?:RAPIER.World;private physicsReady=false;private rapier?:typeof RAPIER;private physicsLoad?:Promise<void>;
@@ -81,7 +83,7 @@ export class Arena {
   }
   preview(index:number|null){this.tourIndex=index;}
   setMap(mapId:MapId){
-    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.mapId=mapId;this.scene.fog=new THREE.Fog(mapId==='dunes'?'#d5cbb4':'#bdcbd0',120,280);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
+    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.explosions.clear();for(const mesh of this.grenadeMeshes.values())disposeGroup(mesh);this.grenadeMeshes.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.lastBombBeeps.clear();this.mapId=mapId;this.scene.fog=new THREE.Fog(mapId==='dunes'?'#d5cbb4':'#bdcbd0',120,280);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
     for(const mesh of this.pickups.values())disposeGroup(mesh);this.pickups.clear();
     for(const p of MAPS[mapId].pickups){const g=new THREE.Group(),gun=this.art.weapon(p.weapon,false);gun.scale.setScalar(.8);gun.rotation.z=Math.PI/2;g.add(gun);const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.018,6,32),new THREE.MeshBasicMaterial({color:'#e9b065'}));ring.rotation.x=Math.PI/2;ring.position.y=-.35;g.add(ring);g.position.set(p.x,p.y+.8,p.z);g.userData.floor=p.y;this.scene.add(g);this.pickups.set(p.id,g);}
     if(this.physicsReady)this.resetPhysics();
@@ -109,16 +111,17 @@ export class Arena {
     const hold=firstPersonHold(weapon);this.gun.position.set(...hold.position);this.gun.rotation.set(hold.pitch,hold.yaw,0);this.localSteps.reset();this.localLanding.reset();
   }
   private scopeContext(){const me=this.snap?.players.find(p=>p.id===this.id);return {weapon:this.weapon,alive:!!me?.hp,locked:document.pointerLockElement===this.canvas,reloading:!!me&&me.reloadUntil>this.snap!.time,sprinting:this.keys.has('ShiftLeft')||this.keys.has('ShiftRight'),playing:this.active&&this.snap?.phase==='playing'};}
-  start(id:string){void this.loadPhysics();this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.resetScope();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.id=id;this.active=true;this.pending=[];this.seq=0;this.snap=undefined;this.snapshots=[];this.keys.clear();this.prompt='';}
-  stop(){this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.sprayMarks.clear();this.spray=false;this.grenadePress=false;this.resetScope();this.audio.stopCombat();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.blastShake.strength=0;this.audio.stopExplosions();this.explosions.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.shotFeedback.reset();this.predictedShots=[];this.active=false;this.snap=undefined;this.gun.visible=false;this.pending=[];document.exitPointerLock();this.callbacks.pickup('');for(const a of this.avatars.values())a.visible=false;for(const g of this.grenadeMeshes.values())disposeGroup(g);this.grenadeMeshes.clear();}
-  lock(){if(this.active){void this.canvas.requestPointerLock();this.audio.unlock();}}
+  start(id:string){this.teamRadio.pause();this.audio.stopRadio();void this.loadPhysics();this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.resetScope();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.id=id;this.active=true;this.pending=[];this.seq=0;this.snap=undefined;this.snapshots=[];this.keys.clear();this.prompt='';}
+  stop(){this.teamRadio.reset();this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.sprayMarks.clear();this.spray=false;this.grenadePress=false;this.resetScope();this.audio.stopCombat();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.blastShake.strength=0;this.audio.stopExplosions();this.explosions.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.shotFeedback.reset();this.predictedShots=[];this.active=false;this.snap=undefined;this.gun.visible=false;this.pending=[];document.exitPointerLock();this.callbacks.pickup('');for(const a of this.avatars.values())a.visible=false;for(const g of this.grenadeMeshes.values())disposeGroup(g);this.grenadeMeshes.clear();}
+  lock(){if(this.active){void this.canvas.requestPointerLock();this.audio.unlock();this.teamRadio.enter();}}
   setEffects(on:boolean){this.audio.setEnabled(on);}
   update(s:Snapshot){
     if(s.mapId!==this.mapId)this.setMap(s.mapId);
     const me=s.players.find(p=>p.id===this.id),old=this.snap?.players.find(p=>p.id===this.id),oldRound=this.snap?.round;
-    if(this.snap&&(this.snap.matchId!==s.matchId||this.snap.round!==s.round)){this.impactMarks.clear();this.deadBodies.clear();for(const avatar of this.avatars.values())resetAvatarMotion(avatar);this.callbacks.board(false);}
+    if(this.snap&&(this.snap.matchId!==s.matchId||this.snap.round!==s.round)){this.snapshots=[];this.pending=[];this.shotFeedback.reset();this.predictedShots=[];this.updateShotTraces(Infinity);this.impactMarks.clear();this.deadBodies.clear();for(const avatar of this.avatars.values())resetAvatarMotion(avatar);this.callbacks.board(false);}
     this.impactMarks.sync(s.impacts??[],s.time);
     if(this.mapRoot)this.sprayMarks.sync(s.sprays??[],this.mapRoot);
+    if(s.phase==='finished'&&this.snap?.phase!=='finished')this.audio.stopRadio();
     if(s.phase==='finished'&&this.snap?.phase!=='finished'||me?.hp===0&&old?.hp!==0)this.resetLife('rifle');
     // Infer each remote player's gait from server travel, never packet count.
     this.audio.syncReloads(new Set(s.players.filter(p=>p.hp>0&&p.reloadUntil>s.time&&s.phase==='playing').map(p=>p.id)));
@@ -139,6 +142,7 @@ export class Arena {
     if(me.hp>0)for(const i of this.pending)this.predicted=move(this.predicted,i,MAPS[this.mapId].solids,MAPS[this.mapId].ladders);
     this.shotFeedback.sync(me,s.time,this.pending);
     if(fresh){this.camera.position.set(me.x,me.y+eyeOf(me),me.z);}
+    this.teamRadio.update(s,this.id);
     for(const p of s.pickups){const g=this.pickups.get(p.id);if(g)g.visible=p.availableAt<=s.time;}
   }
   private soundOccluded(at:THREE.Vector3|{x:number;y:number;z:number}){
@@ -146,6 +150,7 @@ export class Arena {
     return d>.2&&wallDistance(this.camera.position,{x:dx/d,y:dy/d,z:dz/d},MAPS[this.mapId].solids)<d-.15;
   }
   combat(e:CombatEvent,predicted=false){
+    if(!predicted&&e.type==='grenade')this.teamRadio.combat(e,this.snap,this.id);
     const mine=e.shooter===this.id||e.shooter===this.spectator?.targetId,where=mine?undefined:e.from,occluded=!!where&&this.soundOccluded(where);
     if(e.impact)this.impactMarks.add(e.impact);
     if(e.type==='dogDeploy'||e.type==='dogBite'){this.audio.dog(e.from);return;}

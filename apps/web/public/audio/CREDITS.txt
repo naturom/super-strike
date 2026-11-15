@@ -68,3 +68,12 @@ Source: Freesound public HQ MP3 preview. Four isolated footfalls trimmed at
 original speed, converted to mono 22.05 kHz PCM WAV, high-passed at 70 Hz,
 DC-corrected, peak-normalized and given short click-free fades.
 License: https://creativecommons.org/publicdomain/zero/1.0/
+
+TEAM RADIO VOICES
+Kenney Voiceover Pack #1, male recordings: war_go_go_go.ogg and
+war_fire_in_the_hole.ogg, by Kenney Vleugels for Kenney. CC0 (public domain).
+https://kenney.nl/assets/voiceover-pack
+https://lpc.opengameart.org/content/voiceover-pack-40-lines
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Changes: light radio band limiting, gentle compression and loudness
+normalization; converted to mono 44.1 kHz MP3. Original speed/pitch retained.

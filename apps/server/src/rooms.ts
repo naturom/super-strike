@@ -1,6 +1,6 @@
 import { Room, type Client, ServerError } from '@colyseus/core';
 import { Simulation } from './simulation';
-import {validInput,SurfaceCursor} from '@sirocco/shared';
+import {validInput,validMap,MAPS,SurfaceCursor} from '@sirocco/shared';
 import type { signer } from './invites';
 export const roomsByInvite=new Map<string,string>();
 export const activeRooms=new Map<string,ArenaRoom>();
@@ -13,6 +13,7 @@ export class ArenaRoom extends Room {
   private budgets=new Map<string,{start:number;count:number}>();
   private idle=new Map<string,number>();
   private surfaceClients=new Map<string,SurfaceCursor>();
+  private mapChangedAt=-Infinity;
   private profileExpiry?:{clear():void};
   onCreate(options:{invite:string;awaitProfile?:boolean}) {
     const invitation=inviteSigner.verify(options.invite);this.inviteId=invitation.id;this.sim=new Simulation(invitation.mapId!,invitation.mode,invitation.teamAvatars,invitation.moreFun);
@@ -49,6 +50,21 @@ export class ArenaRoom extends Room {
       this.sim.input(client.sessionId,value);
       const p=this.sim.players.get(client.sessionId);
       if(value.forward||value.strafe||value.fire||value.reload||value.jump||value.crouch||value.interact||value.spray||value.summon||p&&Math.abs(p.yaw-value.yaw)>0.01)this.idle.set(client.sessionId,Date.now());
+    });
+    this.onMessage('changeMap',(client,mapId)=>{
+      const reject=(message:string)=>client.send('mapChangeError',{message});
+      if(!this.allow(client.sessionId)||!this.sim.players.get(client.sessionId)?.connected){reject('Unable to switch maps right now.');return;}
+      if(!validMap(mapId)){reject('Choose a valid map.');return;}
+      if(mapId===this.sim.mapId){client.send('mapChanged',{mapId,changed:false});return;}
+      if(this.sim.mode==='defusal'&&!MAPS[mapId].bombSites?.length){reject('This map does not support bomb defusal.');return;}
+      if(Date.now()-this.mapChangedAt<1500){reject('Please wait a moment before switching maps again.');return;}
+      const by=this.sim.players.get(client.sessionId)!.name;
+      this.sim=this.sim.changeMap(mapId);this.mapChangedAt=Date.now();this.idle.set(client.sessionId,Date.now());
+      const state=this.sim.snapshot();
+      for(const peer of this.clients){const cursor=this.surfaceClients.get(peer.sessionId);if(cursor)peer.send('surfaceUpdates',cursor.next(state,true));}
+      this.broadcast('snapshot',state);
+      this.broadcast('mapChanged',{mapId,by,changed:true});
+      log('map_changed',{room:this.roomId,match:this.sim.matchId,map:mapId});
     });
     // Older clients can still send a saved preference; team identity always wins.
     this.onMessage('appearance',(client)=>{if(!this.allow(client.sessionId))return;const player=this.sim.players.get(client.sessionId);if(player)player.avatar=this.sim.teamAvatars[player.team];});

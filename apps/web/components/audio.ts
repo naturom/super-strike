@@ -1,3 +1,4 @@
+import {RADIO_AUDIO,type RadioLine} from './team-radio';
 import {dogBarkSignal} from './dog-audio';
 import type {TrexSound} from './trex-audio';
 import {RecordedAudio} from './recorded-audio';
@@ -12,10 +13,28 @@ export class GameAudio {
   private explosionSources=new Set<AudioBufferSourceNode>();
   private combatBuffers=new Map<string,AudioBuffer>();private voices=new Set<AudioBufferSourceNode>();private reloads=new Map<string,AudioBufferSourceNode>();
   private recordings=new RecordedAudio<AudioBuffer>();private recordingLoad?:Promise<boolean>;private lastVariant=-1;
+  private radioBuffers=new Map<RadioLine,AudioBuffer>();private radioLoad?:Promise<void>;private radioSources=new Set<AudioBufferSourceNode>();private pendingRadio:{line:RadioLine;expires:number}[]=[];
   enabled=true;listener:Vec3={x:0,y:0,z:0};yaw=0;
-  unlock(){if(!this.context){const c=this.context=new AudioContext();this.master=c.createGain();this.master.gain.value=.48;const limiter=c.createDynamicsCompressor();limiter.threshold.value=-14;limiter.ratio.value=8;this.master.connect(limiter).connect(c.destination);this.noise=c.createBuffer(1,c.sampleRate*2,c.sampleRate);const d=this.noise.getChannelData(0);let last=0;for(let i=0;i<d.length;i++){last=(last+Math.random()*2-1)/1.25;d[i]=last;}setTimeout(()=>{if(c.state!=='closed'){this.explosionBuffer(c,'grenade');this.explosionBuffer(c,'bomb');}},0);}const c=this.context;this.recordingLoad=this.recordings.load(async url=>{const response=await fetch(url);if(!response.ok)throw new Error(`Audio ${response.status}: ${url}`);const data=await response.arrayBuffer();if(c.state==='closed')throw new Error('Audio closed');return c.decodeAudioData(data);});void c.resume();}
+  unlock(){if(!this.context){const c=this.context=new AudioContext();this.master=c.createGain();this.master.gain.value=.48;const limiter=c.createDynamicsCompressor();limiter.threshold.value=-14;limiter.ratio.value=8;this.master.connect(limiter).connect(c.destination);this.noise=c.createBuffer(1,c.sampleRate*2,c.sampleRate);const d=this.noise.getChannelData(0);let last=0;for(let i=0;i<d.length;i++){last=(last+Math.random()*2-1)/1.25;d[i]=last;}setTimeout(()=>{if(c.state!=='closed'){this.explosionBuffer(c,'grenade');this.explosionBuffer(c,'bomb');}},0);}const c=this.context;void this.loadRadio(c);this.recordingLoad=this.recordings.load(async url=>{const response=await fetch(url);if(!response.ok)throw new Error(`Audio ${response.status}: ${url}`);const data=await response.arrayBuffer();if(c.state==='closed')throw new Error('Audio closed');return c.decodeAudioData(data);});void c.resume();}
+  private loadRadio(c:AudioContext){
+    if(this.radioLoad)return this.radioLoad;
+    const open=()=>c.state!=='closed';
+    const request=Promise.all((Object.keys(RADIO_AUDIO) as RadioLine[]).map(async line=>{
+      if(this.radioBuffers.has(line))return;
+      try{const response=await fetch(RADIO_AUDIO[line]);if(!response.ok)return;const data=await response.arrayBuffer();if(!open())return;const buffer=await c.decodeAudioData(data);if(open())this.radioBuffers.set(line,buffer);}catch{/* Retry missing recordings on the next audio unlock. */}
+    })).then(()=>{const pending=this.pendingRadio;this.pendingRadio=[];for(const cue of pending)if(cue.expires>Date.now())this.radio(cue.line,false);});
+    this.radioLoad=request;void request.finally(()=>{if(this.radioLoad===request)this.radioLoad=undefined;});return request;
+  }
+  radio(line:RadioLine,queue=true){
+    const c=this.context;if(!c||!this.master||!this.enabled)return;
+    const buffer=this.radioBuffers.get(line);if(!buffer){if(queue){this.pendingRadio.push({line,expires:Date.now()+(line==='go'?5000:1500)});this.pendingRadio=this.pendingRadio.slice(-4);void this.loadRadio(c);}return;}
+    while(this.radioSources.size>=4){const oldest=this.radioSources.values().next().value!;oldest.stop();this.radioSources.delete(oldest);}
+    const source=c.createBufferSource(),gain=c.createGain();source.buffer=buffer;gain.gain.value=1.15;source.connect(gain).connect(this.master);this.radioSources.add(source);
+    source.onended=()=>{this.radioSources.delete(source);source.disconnect();gain.disconnect();};source.start();
+  }
+  stopRadio(){this.pendingRadio=[];for(const source of this.radioSources)source.stop();this.radioSources.clear();}
   async prepare(){this.unlock();return this.recordingLoad!;}
-  setEnabled(on:boolean){this.enabled=on;if(this.master&&this.context)this.master.gain.setTargetAtTime(on?.48:0,this.context.currentTime,.03);}
+  setEnabled(on:boolean){this.enabled=on;if(!on)this.stopRadio();if(this.master&&this.context)this.master.gain.setTargetAtTime(on?.48:0,this.context.currentTime,.03);}
   private route(at?:Vec3){if(!this.context||!this.master||!this.enabled)return;const gain=this.context.createGain(),pan=this.context.createStereoPanner();let volume=1;if(at){const dx=at.x-this.listener.x,dz=at.z-this.listener.z,d=Math.hypot(dx,dz);volume=1/(1+d*.15+d*d*.002);pan.pan.value=Math.max(-1,Math.min(1,(dx*Math.cos(this.yaw)-dz*Math.sin(this.yaw))/Math.max(2,d)));}gain.gain.value=volume;gain.connect(pan).connect(this.master);return gain;}
   private burst(duration:number,volume:number,freq:number,at?:Vec3,delay=0,type:BiquadFilterType='bandpass'){
     const c=this.context,route=this.route(at);if(!c||!route||!this.noise)return;const n=c.createBufferSource(),filter=c.createBiquadFilter(),g=c.createGain();n.buffer=this.noise;filter.type=type;filter.frequency.value=freq;filter.Q.value=.7;const t=c.currentTime+delay;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(volume,t+.004);g.gain.exponentialRampToValueAtTime(.0001,t+duration);n.connect(filter).connect(g).connect(route);n.start(t,Math.random());n.stop(t+duration+.02);n.onended=()=>{n.disconnect();filter.disconnect();g.disconnect();route.disconnect();};
@@ -52,7 +71,7 @@ export class GameAudio {
     this.play('knife',at,13,.4,occluded);
     if(hit!=='air')this.play(hit==='player'?'knife-hit':'knife-wall',at,18,hit==='player'?.75:.6,occluded,undefined,.105);
   }
-  stopCombat(){for(const source of this.voices)source.stop();this.voices.clear();this.reloads.clear();}
+  stopCombat(){this.stopRadio();for(const source of this.voices)source.stop();this.voices.clear();this.reloads.clear();}
   hurt(){this.burst(.18,.3,650);this.tone(90,34,.23,.4);}
   heartbeat(){this.tone(63,38,.16,.16);this.tone(58,32,.13,.1,undefined,.2);}
   flower(at?:Vec3){this.burst(.12,.18,650,at,0,'lowpass');this.tone(240,100,.14,.12,at);}
@@ -74,5 +93,5 @@ export class GameAudio {
   }
   private explosionBuffer(c:AudioContext,kind:ExplosionKind){let buffer=this.explosionBuffers.get(kind);if(!buffer){const signal=explosionSignal(c.sampleRate,kind);buffer=c.createBuffer(1,signal.length,c.sampleRate);buffer.getChannelData(0).set(signal);this.explosionBuffers.set(kind,buffer);}return buffer;}
   stopExplosions(){for(const source of this.explosionSources)source.stop();this.explosionSources.clear();}
-  destroy(){this.stopCombat();this.combatBuffers.clear();this.recordings.clear();this.stopExplosions();this.explosionBuffers.clear();void this.context?.close();}
+  destroy(){this.stopCombat();this.combatBuffers.clear();this.radioBuffers.clear();this.recordings.clear();this.stopExplosions();this.explosionBuffers.clear();void this.context?.close();}
 }

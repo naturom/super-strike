@@ -268,5 +268,18 @@ export class Simulation {
   private scheduleNextGame(){this.nextRoundAt=this.time+NEXT_GAME_COUNTDOWN_MS+(this.bombs.some(b=>b.status==='exploded')?BOMB_RESULT_DELAY_MS:0);}
   finish(){if(this.phase==='finished')return;this.phase='finished';this.scheduleNextGame();this.winner=this.scores.red===this.scores.blue?'draw':this.scores.red>this.scores.blue?'red':'blue';}
   rematch(){if(this.phase!=='finished')return;this.wildlife.clear();this.companions.clear();this.round++;this.sprays=[];this.impacts=[];this.scores={red:0,blue:0};this.phase='playing';this.nextRoundAt=0;this.winner=null;this.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;this.roundLive=false;this.outcome='';this.bombIntents.clear();this.grenades=[];this.pickups=MAPS[this.mapId].pickups.map(p=>({...p}));this.flowerRacks=this.moreFun?flowerPickupIds(this.pickups):new Set();for(const p of this.players.values()){p.dogUsed=undefined;p.kills=0;p.deaths=0;this.spawn(p);}if(this.mode==='defusal')this.resetBomb();}
+  changeMap(mapId:MapId):Simulation {
+    if(mapId===this.mapId)return this;
+    const next=new Simulation(mapId,this.mode,this.teamAvatars,this.moreFun);
+    next.time=this.time;next.round=this.round+1;next.eventId=this.eventId;next.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;
+    for(const old of this.players.values()){
+      const player=next.add(old.id,old.name);
+      player.team=old.team;player.connected=old.connected;player.spawnId=old.spawnId;
+      const sequence=Math.max(old.ack,this.lastSeq.get(old.id)??0);player.ack=sequence;next.lastSeq.set(old.id,sequence);
+      next.spawn(player);
+    }
+    if(next.mode==='defusal')next.resetBomb();
+    return next;
+  }
   snapshot():Snapshot{return{dogs:this.dogs.length?this.dogs.map(d=>({...d})):undefined,teamAvatars:{...this.teamAvatars},trexes:this.trexes.map(t=>({...t})),impacts:this.impacts.map(m=>({...m,position:{...m.position},normal:{...m.normal},ray:{origin:{...m.ray.origin},direction:{...m.ray.direction}}})),sprays:this.sprays.map(s=>({...s,position:{...s.position},normal:{...s.normal},ray:s.ray?{origin:{...s.ray.origin},direction:{...s.ray.direction}}:undefined})),mode:this.mode,roundLive:this.roundLive,outcome:this.outcome,bomb:this.bomb?{...this.bomb,planter:this.bomb.planter?{...this.bomb.planter}:undefined,action:this.bomb.action?{...this.bomb.action}:null}:null,bombs:this.bombs.map(b=>({...b,planter:b.planter?{...b.planter}:undefined,action:b.action?{...b.action}:null})),mapId:this.mapId,matchId:this.matchId,round:this.round,time:this.time,endsAt:this.endsAt,nextRoundAt:this.nextRoundAt,phase:this.phase,winner:this.winner,scores:{...this.scores},players:[...this.players.values()].map(p=>({...p,gunState:Math.max(0,Math.ceil(((this.nextShot.get(p.id)??0)-this.time-.01)/(DT*1000)))*2+(this.trigger.get(p.id)?1:0),death:p.death?{...p.death,from:{...p.death.from}}:undefined,grenadeThrow:p.grenadeThrow?{...p.grenadeThrow}:undefined,ammo:{...p.ammo},untestedWeapons:p.untestedWeapons?[...p.untestedWeapons]:undefined,flowerWeapons:p.flowerWeapons?[...p.flowerWeapons]:undefined})),pickups:this.pickups.map(({base,...p})=>p),grenades:this.grenades.map(g=>({...g}))};}
 }
