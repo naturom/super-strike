@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {mergeVertices} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {footfall,type Gait} from './locomotion';
 import type {Stance} from './stance-motion';
 
 const down=new THREE.Vector3(0,-1,0),restKnee=new THREE.Vector3(0,-.43,0),restAnkle=new THREE.Vector3(0,-.81,0);
@@ -39,19 +40,27 @@ function setup(model:THREE.Group){
 
 /** Bend the actual thigh, shin and foot surfaces without scaling the body or
  * separating knees. Foot rotation cancels the leg bend on planted steps. */
-export function poseAvatarBody(model:THREE.Group,stance:Stance,phase:number,weight:number){
- const rig=setup(model),{crouch,air,landing}=stance,walk=weight*(1-air)*(1-crouch*.7),drop=.66*crouch+.07*air+.09*landing+.025*walk,back=.18*crouch+.035*air;
- const lean=-.32*crouch-.05*air-.06*landing-.025*walk;
- rig.torso.rotation.set(lean,0,0);rig.torso.position.set(0,.91-drop,back).sub(new THREE.Vector3(0,.91,0).applyEuler(rig.torso.rotation));rig.torso.updateMatrix();
+export function poseAvatarBody(model:THREE.Group,stance:Stance,phase:number,weight:number,gait?:Gait){
+ const rig=setup(model),{crouch,air,landing}=stance,footWeight=weight*(1-air),walk=footWeight*(1-crouch*.7),run=gait?.run??0;
+ const drop=.66*crouch+.07*air+.09*landing+(gait?(.115+.025*run+.018*Math.cos(phase*2))*(1-crouch):.025)*walk,back=.18*crouch+.035*air;
+ const forward=-(gait?.z??-1),shift=Math.sin(phase)*.014*walk*(1-crouch);
+ const lean=-.32*crouch-.05*air-.06*landing-(.035+.075*run)*walk*forward;
+ const roll=-(gait?.x??0)*.045*walk+Math.sin(phase)*.012*walk,twist=Math.sin(phase)*.032*walk;
+ rig.torso.rotation.set(lean,twist,roll);rig.torso.position.set(shift,.91-drop,back).sub(new THREE.Vector3(0,.91,0).applyEuler(rig.torso.rotation));rig.torso.updateMatrix();
  for(let side=0;side<2;side++){
-  const leg=rig.legs[side],sign=side===0?-1:1,stride=Math.sin(phase+side*Math.PI),lift=Math.max(0,stride)*(.065-.04*crouch)*walk+(stance.grounded?0:air*(.16+(stance.vy>0?.045:0))),hip=leg.rest.clone().add(new THREE.Vector3(0,-drop,back)),ankle=new THREE.Vector3(leg.rest.x+sign*.055*crouch,.10+lift,-stride*.19*walk+air*(side===0?.06:.13));
+  const leg=rig.legs[side],sign=side===0?-1:1,stride=Math.sin(phase+side*Math.PI),step=gait?footfall(gait,side,crouch):undefined;
+  const footPitch=(step?.pitch??0)*footWeight*(1-crouch*.6);
+  const lift=(step?step.lift:Math.max(0,stride)*(.065-.04*crouch))*footWeight+(stance.grounded?0:air*(.16+(stance.vy>0?.045:0)));
+  const hip=leg.rest.clone().add(new THREE.Vector3(shift,-drop,back)),ankle=new THREE.Vector3(leg.rest.x+sign*.055*crouch+(step?.x??0)*footWeight,.10+lift+Math.abs(Math.sin(footPitch))*.15,(step?.z??-stride*.19)*footWeight+air*(side===0?.06:.13));
+  // Sidesteps shuffle the trailing foot inward instead of crossing both shins.
+  ankle.x=sign<0?Math.min(-.08,ankle.x):Math.max(.08,ankle.x);
   const axis=ankle.clone().sub(hip),distance=axis.length(),reach=Math.max(.0501,Math.min(distance,.81));axis.normalize();
-  const along=(.43**2-.38**2+reach**2)/(2*reach),pole=new THREE.Vector3(sign*.15*crouch,0,-1);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
+  const along=(.43**2-.38**2+reach**2)/(2*reach),pole=new THREE.Vector3(sign*(.15*crouch+.18*Math.abs(gait?.x??0)*footWeight),0,-1);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
   const knee=hip.clone().addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,.43**2-along**2)));
   // A fully extended stride may exceed the anatomical reach by a few mm.
   const shinDirection=ankle.clone().sub(knee).normalize();ankle.copy(knee).addScaledVector(shinDirection,.38);
   leg.root.position.copy(hip);leg.root.quaternion.setFromUnitVectors(down,knee.clone().sub(hip).normalize());leg.root.updateMatrix();
-  const inverseHip=leg.root.quaternion.clone().invert(),shin=new THREE.Quaternion().setFromUnitVectors(down,ankle.clone().sub(knee).normalize()).premultiply(inverseHip),foot=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-sign*.08*crouch).premultiply(inverseHip),ankleTurn=foot.clone().multiply(shin.clone().invert()),posedAnkle=restAnkle.clone().sub(restKnee).applyQuaternion(shin).add(restKnee),torsoToLeg=leg.root.matrix.clone().invert().multiply(rig.torso.matrix),pinNormal=new THREE.Matrix3().getNormalMatrix(torsoToLeg);
+  const inverseHip=leg.root.quaternion.clone().invert(),shin=new THREE.Quaternion().setFromUnitVectors(down,ankle.clone().sub(knee).normalize()).premultiply(inverseHip),foot=new THREE.Quaternion().setFromEuler(new THREE.Euler(footPitch,-sign*.08*crouch+(gait?.x??0)*.10*walk,0)).premultiply(inverseHip),ankleTurn=foot.clone().multiply(shin.clone().invert()),posedAnkle=restAnkle.clone().sub(restKnee).applyQuaternion(shin).add(restKnee),torsoToLeg=leg.root.matrix.clone().invert().multiply(rig.torso.matrix),pinNormal=new THREE.Matrix3().getNormalMatrix(torsoToLeg);
   const signature=[drop,back,lean,...leg.root.quaternion.toArray(),...shin.toArray(),...foot.toArray()].map(x=>x.toFixed(6)).join(',');if(signature===leg.signature)continue;leg.signature=signature;
   for(const surface of leg.surfaces){
    const p=surface.mesh.geometry.attributes.position,n=surface.mesh.geometry.attributes.normal,turn=new THREE.Quaternion(),ankleRotation=new THREE.Quaternion(),at=new THREE.Vector3(),normal=new THREE.Vector3(),rest=new THREE.Vector3();
@@ -66,5 +75,5 @@ export function poseAvatarBody(model:THREE.Group,stance:Stance,phase:number,weig
    p.needsUpdate=n.needsUpdate=true;surface.mesh.geometry.computeBoundingBox();surface.mesh.geometry.computeBoundingSphere();
   }
  }
- model.userData.stance={...stance};return {lean};
+ model.userData.stance={...stance};return {lean,roll,twist};
 }

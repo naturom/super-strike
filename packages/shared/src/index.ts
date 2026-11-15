@@ -10,6 +10,7 @@ export {DUST2,dustPoint,DUST_SCALE} from './dust2';
 export {SCOUT_TOWER,scoutTowerRoute} from './scout-tower';
 export {FALL_DAMAGE,fallDamage} from './fall-damage';
 export {GRENADE_THROW,GRENADE_BLAST,grenadeBlastDamage,grenadeThrowProgress,grenadeReleased,type GrenadeThrow} from './grenade-throw';
+export {DOG_RULES,rayDog,type Dog} from './dogs';
 export {TREX_RULES,TREX_HIT_VOLUMES,rayTrex,type Trex} from './trex';
 export type Team = 'red' | 'blue';
 export const TEAMS={red:{name:'Team A',avatar:'ironman',character:'Iron Man'},blue:{name:'Team B',avatar:'ultraman',character:'Ultraman'}} as const satisfies Record<Team,{name:string;avatar:AvatarId;character:string}>;
@@ -58,7 +59,7 @@ export const freshAmmo=():Ammo=>({rifle:30,pistol:12,smg:0,marksman:0});
 export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksman:.065,ak47:.055,m4a1s:.025,p90:.018,scar:.060,m249:.047,deagle:.080})[weapon];
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
 export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
-export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; }
+export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; }
 export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];}
 export const MAPS:Record<MapId,MapDefinition>={
   dunes:DUST2,
@@ -67,23 +68,23 @@ export const MAPS:Record<MapId,MapDefinition>={
 export const DEFAULT_MAP:MapId='dunes';
 export const validMap = (value:unknown):value is MapId => value==='dunes'||value==='relay';
 export const SOLIDS=MAPS[DEFAULT_MAP].solids, SPAWNS=MAPS[DEFAULT_MAP].spawns;
-export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;}
+export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;dog?:boolean;}
 export const neutralInput=():Input=>({seq:0,forward:0,strafe:0,yaw:0,pitch:0,jump:false,sprint:false,fire:false,reload:false,weapon:'rifle',crouch:false,interact:false});
 export interface Motion extends Vec3 {vy:number;grounded:boolean;crouched?:boolean;climbing?:string;}
 export interface DeathState {at:number;from:Vec3;vy:number;crouched:boolean;}
-export interface Player extends Motion {avatar:AvatarId;id:string;name:string;team:Team;yaw:number;pitch:number;scope?:0|1|2;hp:number;kills:number;deaths:number;weapon:Equipment;primary:Weapon;secondary?:Sidearm;ammo:Ammo;grenades:number;grenadeThrow?:import('./grenade-throw').GrenadeThrow;crouched:boolean;reloadUntil:number;respawnAt:number;protectedUntil:number;connected:boolean;ack:number;spawnId:number;death?:DeathState;/** Snapshot: remaining gun cooldown ticks × 2, plus 1 while the trigger is held. */gunState?:number;}
+export interface Player extends Motion {avatar:AvatarId;id:string;name:string;team:Team;yaw:number;pitch:number;scope?:0|1|2;hp:number;kills:number;deaths:number;weapon:Equipment;primary:Weapon;secondary?:Sidearm;ammo:Ammo;grenades:number;grenadeThrow?:import('./grenade-throw').GrenadeThrow;crouched:boolean;reloadUntil:number;respawnAt:number;protectedUntil:number;connected:boolean;ack:number;spawnId:number;death?:DeathState;dogUsed?:true;untestedWeapons?:Weapon[];flowerWeapons?:Weapon[];/** Snapshot: remaining gun cooldown ticks × 2, plus 1 while the trigger is held. */gunState?:number;}
 export interface Grenade extends Vec3 {id:number;owner:string;team:Team;vx:number;vy:number;vz:number;explodeAt:number;}
 export interface Spray {id:number;owner:string;position:Vec3;normal:Vec3;size?:number;ray?:{origin:Vec3;direction:Vec3};expiresAt:number;}
 export type ImpactSurface='stone'|'wood'|'metal'|'sand'|'asphalt';
 export interface ImpactMark {id:number;at:number;weapon:Weapon|'knife';position:Vec3;normal:Vec3;surface:ImpactSurface;ray:{origin:Vec3;direction:Vec3};expiresAt:number;}
-export interface Snapshot {teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
+export interface Snapshot {teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
 export type HitZone = 'head'|'body';
-export interface CombatEvent {type:'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
+export interface CombatEvent {type:'dogDeploy'|'dogBite'|'dogDeath'|'flower'|'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex'|'dog';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
 export function validInput(value:unknown):value is Input {
   if(!value||typeof value!=='object')return false;const i=value as Input;
   return (i.scope===undefined||i.scope===0||i.scope===1||i.scope===2)&&(i.spawnId===undefined||Number.isSafeInteger(i.spawnId)&&i.spawnId>0)&&Number.isSafeInteger(i.seq)&&i.seq>=0&&i.seq<2**31&&Number.isFinite(i.forward)&&Math.abs(i.forward)<=1&&Number.isFinite(i.strafe)&&Math.abs(i.strafe)<=1&&Number.isFinite(i.yaw)&&Math.abs(i.yaw)<=Math.PI*2&&Number.isFinite(i.pitch)&&Math.abs(i.pitch)<=1.5&&
     ['jump','sprint','fire','reload'].every(k=>typeof (i as any)[k]==='boolean')&&
-    ['crouch','interact','spray','summon'].every(k=>(i as any)[k]===undefined||typeof (i as any)[k]==='boolean')&&(i.weapon==='knife'||i.weapon==='grenade'||i.weapon==='bomb'||Object.hasOwn(WEAPONS,i.weapon));
+    ['crouch','interact','spray','summon','dog'].every(k=>(i as any)[k]===undefined||typeof (i as any)[k]==='boolean')&&(i.weapon==='knife'||i.weapon==='grenade'||i.weapon==='bomb'||Object.hasOwn(WEAPONS,i.weapon));
 }
 export const heightOf=(p:{crouched?:boolean})=>p.crouched?CROUCH_HEIGHT:HEIGHT;
 export const eyeOf=(p:{crouched?:boolean})=>p.crouched?CROUCH_EYE:EYE;

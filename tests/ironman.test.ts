@@ -134,7 +134,7 @@ test('Ultraman cradles C4 below the explosives and extends the index to type on 
 test('Wonder Woman keeps raised hands and anatomical shoulder anchors through every equipped action',()=>fixture(art=>{
  const model=buildAvatar(art,'wonder-woman');model.position.set(3,2,-7);model.rotation.y=.65;
  for(const crouch of [1,.61])for(const kind of ['rifle','pistol','smg','marksman','knife','grenade','bomb'] as Equipment[]){
-  model.scale.y=crouch;const held=equipAvatarModel(art,model,kind,'wonder-woman');assert.equal(held.position.y,1.26+WONDER_WOMAN_ARM_LIFT);
+  model.scale.y=crouch;const held=equipAvatarModel(art,model,kind,'wonder-woman');assert.equal(held.position.y,(kind==='pistol'?1.37:1.26)+WONDER_WOMAN_ARM_LIFT);
   for(let i=0;i<=10;i++){
    const t=i/10;animateHands(held,kind,{reload:t,throwProgress:t,plant:t,slash:t});model.updateMatrixWorld(true);
    for(const name of ['leftArm','rightArm']){

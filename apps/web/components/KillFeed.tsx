@@ -8,6 +8,7 @@ export type KillFeedEntry=CombatEvent&{at:number};
 export function killDescription(event:CombatEvent){
  const victim=event.victim??'Player',weapon=event.weapon==='grenade'?'FRAG GRENADE':event.weapon==='bomb'?'C4 EXPLOSION':weaponLabel(event.weapon);
  if(event.cause==='fall')return {victim,method:'FALL DAMAGE',killer:null,detail:'',label:`${victim} died from fall damage`};
+ if(event.cause==='dog'){const killer=`${event.name??'Player'}’s dog`;return {victim,method:'DOG BITE',killer,detail:'',label:`${killer} killed ${victim}`};}
  if(event.cause==='trex')return {victim,method:'MAULING',killer:'T-REX',detail:'',label:`T-REX killed ${victim} by mauling`};
  if(event.shooter===event.target)return {victim,method:weapon,killer:null,detail:'SELF',label:`${victim} killed themselves with ${weapon}`};
  const killer=event.name??'Unknown player',detail=event.hitZone==='head'?'HEADSHOT':'';

@@ -42,7 +42,8 @@ export async function createGameServer(options:{secret?:string;handler?:(req:Inc
         if(body.mapId!==undefined&&!validMap(body.mapId))throw new Error('Unknown map');
         if(body.mode!==undefined&&!validMode(body.mode))throw new Error('Unknown mode');
         if(!body.invite&&body.teamAvatars!==undefined&&!validTeamAvatars(body.teamAvatars))throw new Error('Choose a different character for each team');
-        const invite=body.invite??signs.create(Date.now(),body.mapId??DEFAULT_MAP,body.mode??'deathmatch',body.teamAvatars??DEFAULT_TEAM_AVATARS);const payload=signs.verify(invite);
+        if(!body.invite&&body.moreFun!==undefined&&typeof body.moreFun!=='boolean')throw new Error('Invalid More fun setting');
+        const invite=body.invite??signs.create(Date.now(),body.mapId??DEFAULT_MAP,body.mode??'deathmatch',body.teamAvatars??DEFAULT_TEAM_AVATARS,body.moreFun??true);const payload=signs.verify(invite);
         const result=await serial(payload.id,async()=>{
           let id=roomsByInvite.get(payload.id);let room=id?await matchMaker.query({roomId:id}):[];
           const fresh=!room.length;
@@ -52,9 +53,9 @@ export async function createGameServer(options:{secret?:string;handler?:(req:Inc
           }
           const local=activeRooms.get(id!);
           if(local && local.sim.players.size>=8 || room[0].locked)throw Object.assign(new Error('Room full: all 8 seats are occupied or reconnecting.'),{status:409});
-          if(createOnly)return {invite,roomId:id,fresh,mapId:payload.mapId,mode:payload.mode,teamAvatars:payload.teamAvatars,matchId:local?.sim.matchId};
+          if(createOnly)return {invite,roomId:id,fresh,mapId:payload.mapId,mode:payload.mode,teamAvatars:payload.teamAvatars,moreFun:payload.moreFun,matchId:local?.sim.matchId};
           const reservation=await matchMaker.reserveSeatFor(room[0],{invite,nickname:body.nickname});
-          return {invite,reservation,fresh,mapId:payload.mapId,mode:payload.mode,teamAvatars:payload.teamAvatars,matchId:local?.sim.matchId};
+          return {invite,reservation,fresh,mapId:payload.mapId,mode:payload.mode,teamAvatars:payload.teamAvatars,moreFun:payload.moreFun,matchId:local?.sim.matchId};
         });
         json(res,200,result);
       }catch(error){const e=error as Error & {status?:number};json(res,e.status??400,{error:e.message||'Unable to join room'});}

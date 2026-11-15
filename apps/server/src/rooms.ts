@@ -15,7 +15,7 @@ export class ArenaRoom extends Room {
   private surfaceClients=new Map<string,SurfaceCursor>();
   private profileExpiry?:{clear():void};
   onCreate(options:{invite:string;awaitProfile?:boolean}) {
-    const invitation=inviteSigner.verify(options.invite);this.inviteId=invitation.id;this.sim=new Simulation(invitation.mapId!,invitation.mode,invitation.teamAvatars);
+    const invitation=inviteSigner.verify(options.invite);this.inviteId=invitation.id;this.sim=new Simulation(invitation.mapId!,invitation.mode,invitation.teamAvatars,invitation.moreFun);
     // A newly created room has no player until someone submits their profile.
     if(options.awaitProfile){this.autoDispose=false;this.profileExpiry=this.clock.setTimeout(()=>{void this.disconnect();},10*60*1000);}
     this.maxClients=8;

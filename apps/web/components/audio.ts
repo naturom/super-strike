@@ -1,3 +1,4 @@
+import {dogBarkSignal} from './dog-audio';
 import type {TrexSound} from './trex-audio';
 import {RecordedAudio} from './recorded-audio';
 import {combatSignal,spatialMix,isRecordedKind,type SoundKind,type Surface} from './combat-audio';
@@ -36,6 +37,7 @@ export class GameAudio {
   }
   creature(kind:TrexSound,at:Vec3,occluded=false){this.play(kind,at,kind==='trex-step'?45:110,kind==='trex-step'?.7:.95,occluded);}
   spray(at?:Vec3,occluded=false){this.play('spray',at,18,.78,occluded);}
+  dog(at:Vec3){const c=this.context,route=this.route(at);if(!c||!route)return;const key='dog-bark';let buffer=this.combatBuffers.get(key);if(!buffer){const signal=dogBarkSignal(c.sampleRate);buffer=c.createBuffer(1,signal.length,c.sampleRate);buffer.getChannelData(0).set(signal);this.combatBuffers.set(key,buffer);}const source=c.createBufferSource();source.buffer=buffer;source.connect(route);source.onended=()=>{source.disconnect();route.disconnect();};source.start();}
   shot(weapon:Weapon,at?:Vec3,occluded=false){this.play(weapon,at,weapon==='m4a1s'?65:140,weapon==='marksman'?1.3:weapon==='deagle'?1.15:weapon==='m4a1s'?.48:.95,occluded);}
   reload(weapon:Weapon,owner:string,at?:Vec3,occluded=false){this.play(`reload-${weapon}`,at,20,.65,occluded,owner);}
   cancelReload(owner:string){const source=this.reloads.get(owner);if(source){source.stop();this.reloads.delete(owner);}}
@@ -53,6 +55,7 @@ export class GameAudio {
   stopCombat(){for(const source of this.voices)source.stop();this.voices.clear();this.reloads.clear();}
   hurt(){this.burst(.18,.3,650);this.tone(90,34,.23,.4);}
   heartbeat(){this.tone(63,38,.16,.16);this.tone(58,32,.13,.1,undefined,.2);}
+  flower(at?:Vec3){this.burst(.12,.18,650,at,0,'lowpass');this.tone(240,100,.14,.12,at);}
   pickup(){this.tone(580,950,.09,.1);this.burst(.07,.2,2400);}
   bombBeep(at:Vec3){this.tone(1800,1800,.07,.18,at);}
   bombAction(at?:Vec3){this.burst(.15,.25,1900,at);this.tone(700,1000,.08,.13,at);}

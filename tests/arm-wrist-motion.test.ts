@@ -111,3 +111,25 @@ test('item-specific fingers share the wrist seam and C4 typing morph topology',(
   disposeGroup(held);
  }
 }));
+
+
+test('pistols use a raised two-handed hold and preserve the firing grip through reload',()=>fixture(art=>{
+ for(const avatar of ['ironman','ultraman','wonder-woman'] as const)for(const third of [false,true])for(const kind of ['pistol','deagle'] as const){
+  const {model,held}=equipped(art,avatar,kind,third);animateHands(held,kind,pose(kind,0));held.updateWorldMatrix(true,true);
+  const left=held.getObjectByName('leftArm')!.userData.ironArm,right=held.getObjectByName('rightArm')!.userData.ironArm,body=held.getObjectByName('equipmentBody')!;
+  const a=left.palm.getWorldPosition(new THREE.Vector3()),b=right.palm.getWorldPosition(new THREE.Vector3());
+  assert.ok(a.distanceTo(b)<.19,`${avatar} ${kind}: support hand must wrap the firing hand`);
+  const grip=body.matrixWorld.clone().invert().multiply(right.palm.matrixWorld);
+  for(const p of [.2,.48,.78,0]){
+   animateHands(held,kind,pose(kind,p));held.updateWorldMatrix(true,true);
+   const at=body.matrixWorld.clone().invert().multiply(right.palm.matrixWorld);assert.ok(at.elements.every((v:number,i:number)=>Math.abs(v-grip.elements[i])<1e-7),'reload cannot release or rotate the firing grip');
+  }
+  if(model){
+   for(const name of ['leftArm','rightArm']){
+    const arm=held.getObjectByName(name)!,rig=arm.userData.ironArm,wrist=model.worldToLocal(rig.palm.localToWorld(new THREE.Vector3(0,0,.12))),elbow=model.worldToLocal(arm.localToWorld(rig.elbow.position.clone()));
+    assert.ok(wrist.y>1.22&&wrist.z<-.40,`${avatar}: pistol must be raised and extended beyond the torso`);assert.ok(elbow.y<wrist.y,`${avatar}: elbow must sit below the pistol wrist`);
+   }
+  }
+  disposeGroup(model??held);
+ }
+}));

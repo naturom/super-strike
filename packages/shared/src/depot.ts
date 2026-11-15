@@ -50,17 +50,17 @@ box('West forklift cage',-11,-4.75,1.2,1.15,.12,'roof',2.1);
 box('East cargo crate',11,5,1.5,2,1.2,'crate',0,'plaster');
 
 const pickups:Pickup[]=[
- {id:'west-smg',x:-17,y:0,z:13,weapon:'smg',availableAt:0},
- {id:'east-smg',x:17,y:0,z:-13,weapon:'smg',availableAt:0},
+ {id:'west-smg',base:'red',x:-17,y:0,z:13,weapon:'smg',availableAt:0},
+ {id:'east-smg',base:'blue',x:17,y:0,z:-13,weapon:'smg',availableAt:0},
  {id:'mid-dmr',x:-3,y:0,z:-14,weapon:'marksman',availableAt:0},
  {id:'court-dmr',x:3,y:0,z:14,weapon:'marksman',availableAt:0},
- {id:'west-ak47',x:-17,y:0,z:8,weapon:'ak47',availableAt:0},
- {id:'east-m4a1s',x:17,y:0,z:-8,weapon:'m4a1s',availableAt:0},
- {id:'west-p90',x:-17,y:0,z:4,weapon:'p90',availableAt:0},
- {id:'east-scar',x:17,y:0,z:-4,weapon:'scar',availableAt:0},
+ {id:'west-ak47',base:'red',x:-17,y:0,z:8,weapon:'ak47',availableAt:0},
+ {id:'east-m4a1s',base:'blue',x:17,y:0,z:-8,weapon:'m4a1s',availableAt:0},
+ {id:'west-p90',base:'red',x:-17,y:0,z:4,weapon:'p90',availableAt:0},
+ {id:'east-scar',base:'blue',x:17,y:0,z:-4,weapon:'scar',availableAt:0},
  {id:'mid-m249',x:0,y:0,z:8,weapon:'m249',availableAt:0},
- {id:'west-deagle',x:-12,y:0,z:14,weapon:'deagle',availableAt:0},
- {id:'east-deagle',x:12,y:0,z:-14,weapon:'deagle',availableAt:0},
+ {id:'west-deagle',base:'red',x:-12,y:0,z:14,weapon:'deagle',availableAt:0},
+ {id:'east-deagle',base:'blue',x:12,y:0,z:-14,weapon:'deagle',availableAt:0},
 ];
 for(const p of pickups){p.y=.16;box('Weapon rack stand',p.x,p.z,1,.6,.16,'floor');}
 export const DEPOT:MapDefinition={

@@ -68,3 +68,26 @@ test('first-person stance motion is bounded, settles, and respects reduced motio
  const reduced=firstPersonStance({crouch:.5,air:1,landing:1,vy:-20,grounded:false},true),quiet=firstPersonStance({crouch:.5,air:0,landing:0,vy:0,grounded:true},true);assert.deepEqual(reduced,quiet,'reduced motion must remove jump and landing shake');
  for(let i=0;i<80;i++)motion.update(1/60,true,false,0);for(const value of Object.values(firstPersonStance(motion.value)))assert.ok(Math.abs(value)<1e-8,'stance motion should settle back to rest');
 });
+
+
+test('directional running keeps feet above the floor and moving shoulder seams attached',()=>fixture(art=>{
+ for(const avatar of AVATARS){
+  const model=buildAvatar(art,avatar.id);equipAvatarModel(art,model,'rifle',avatar.id);
+  animateAvatarMotion(model,'rifle',ready,.05,true);
+  for(const [dx,dz] of [[0,-1],[1,0],[0,1]])for(let frame=0;frame<16;frame++){
+   model.position.x+=dx*8*.05;model.position.z+=dz*8*.05;
+   animateAvatarMotion(model,'rifle',ready,.05,true,0,{vy:0});
+   for(const name of ['leftLeg','rightLeg']){
+    const leg=model.getObjectByName(name)!,bounds=new THREE.Box3().setFromObject(leg,true);
+    assert.ok(bounds.min.y>-.04,`${avatar.id} ${name}: boot penetrates floor at ${bounds.min.y}`);
+    assert.ok(bounds.min.y<.26,`${avatar.id}: implausible foot lift ${bounds.min.y}`);
+   }
+   const held=model.getObjectByName('equippedWeapon')!,torso=model.getObjectByName('avatarTorso')!;
+   for(const name of ['leftArm','rightArm']){
+    const arm=held.getObjectByName(name)!,rig=arm.userData.ironArm,skin=rig.skin as THREE.Mesh,shape=skin.userData.anatomicalArm,p=skin.geometry.attributes.position;
+    for(const i of shape.shoulderEdge){const actual=skin.localToWorld(new THREE.Vector3().fromBufferAttribute(p,i)),expected=torso.localToWorld(new THREE.Vector3().fromArray(shape.position,i*3));assert.ok(actual.distanceTo(expected)<1e-5,'running cannot pull the shoulder seam apart');}
+   }
+  }
+  disposeGroup(model);
+ }
+}));

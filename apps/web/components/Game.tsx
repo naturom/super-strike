@@ -25,6 +25,7 @@ export default function Game(){
   const [spectatingId,setSpectatingId]=useState<string|null>(null);
   const [teamAvatars,setTeamAvatars]=useState<TeamAvatars>(DEFAULT_TEAM_AVATARS);
   function chooseTeamCharacter(team:Team,avatar:AvatarId){setTeamAvatars(current=>{const other=team==='red'?'blue':'red';return {...current,[team]:avatar,[other]:current[other]===avatar?current[team]:current[other]};});}
+  const [moreFun,setMoreFun]=useState(true);
   const [selectedMode,setSelectedMode]=useState<GameMode>('defusal');
   const [resultReady,setResultReady]=useState(true);const resultTimer=useRef<ReturnType<typeof setTimeout>|null>(null);const lastResult=useRef('');
   const [preview,setPreview]=useState<number|null>(null);
@@ -39,7 +40,7 @@ export default function Game(){
     let cancelled=false;
     setName(localStorage.getItem('sirocco-name')??'');const token=new URLSearchParams(location.hash.slice(1)).get('invite')??'';setInvite(token);inviteRef.current=token;if(token)setScreen('profile');
     client.current=new Client(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);
-    if(token){try{const payload=JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));if(validTeamAvatars(payload.teamAvatars))setTeamAvatars(payload.teamAvatars);const mapId=validMap(payload.mapId)?payload.mapId:'relay';selectedMapRef.current=mapId;setSelectedMap(mapId);setSelectedMode(payload.mode==='defusal'?'defusal':'deathmatch');}catch{}}
+    if(token){try{const payload=JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));setMoreFun(payload.moreFun!==false);if(validTeamAvatars(payload.teamAvatars))setTeamAvatars(payload.teamAvatars);const mapId=validMap(payload.mapId)?payload.mapId:'relay';selectedMapRef.current=mapId;setSelectedMap(mapId);setSelectedMode(payload.mode==='defusal'?'defusal':'deathmatch');}catch{}}
     // Hydrate the usable lobby before fetching/parsing WebGL, character data and map builders.
     void (async()=>{try{
       await afterPaint();if(cancelled)return;const {Arena}=await import('./arena');await afterPaint();if(cancelled)return;
@@ -66,18 +67,18 @@ export default function Game(){
   async function createRoom(){
     if(busy)return;setBusy(true);setError('');setStatus('Creating room · a cold start may take a moment…');
     try{
-      const response=await fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',mapId:selectedMap,mode:selectedMode,teamAvatars}),signal:AbortSignal.timeout(45000)});
+      const response=await fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',mapId:selectedMap,mode:selectedMode,teamAvatars,moreFun}),signal:AbortSignal.timeout(45000)});
       const data=await response.json();if(!response.ok)throw new Error(data.error??'Could not create room');
-      if(validTeamAvatars(data.teamAvatars))setTeamAvatars(data.teamAvatars);
+      if(validTeamAvatars(data.teamAvatars))setTeamAvatars(data.teamAvatars);setMoreFun(data.moreFun!==false);
       inviteRef.current=data.invite;setInvite(data.invite);history.replaceState(null,'',`/#invite=${data.invite}`);
       setCreatedHere(true);setScreen('profile');setStatus('');window.scrollTo(0,0);
     }catch(e){setError((e as Error).message);setStatus('');}finally{setBusy(false);}
   }
   async function reserve(token:string){
-    const response=await fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:nameRef.current,invite:token||undefined,mapId:selectedMap,mode:selectedMode,teamAvatars}),signal:AbortSignal.timeout(45000)});
+    const response=await fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:nameRef.current,invite:token||undefined,mapId:selectedMap,mode:selectedMode,teamAvatars,moreFun}),signal:AbortSignal.timeout(45000)});
     const data=await response.json();if(!response.ok)throw new Error(data.error??'Could not join room');
     if(data.mode)setSelectedMode(data.mode);if(validMap(data.mapId)){setSelectedMap(data.mapId);arena.current?.setMap(data.mapId);}
-    if(validTeamAvatars(data.teamAvatars))setTeamAvatars(data.teamAvatars);
+    if(validTeamAvatars(data.teamAvatars))setTeamAvatars(data.teamAvatars);setMoreFun(data.moreFun!==false);
     inviteRef.current=data.invite;setInvite(data.invite);history.replaceState(null,'',`/#invite=${data.invite}`);
     const next=await client.current!.consumeSeatReservation(data.reservation);attach(next);return data;
   }
@@ -104,7 +105,7 @@ export default function Game(){
     intentional.current=true;const previous=room.current;room.current=null;void previous?.leave();arena.current?.stop();
     inviteRef.current='';setInvite('');history.replaceState(null,'','/');sessionStorage.removeItem('sirocco-reconnect');
     if(resultTimer.current)clearTimeout(resultTimer.current);lastResult.current='';setResultReady(true);
-    setCreatedHere(false);setScreen('room');setPlaying(false);setSnap(null);setBoard(false);setPickup('');setHurt(false);setStatus('');setError('');setNotice('');setFeed([]);setCopied(false);
+    setMoreFun(true);setCreatedHere(false);setScreen('room');setPlaying(false);setSnap(null);setBoard(false);setPickup('');setHurt(false);setStatus('');setError('');setNotice('');setFeed([]);setCopied(false);
   }
   const armed=snap?.bombs.filter(b=>b.status==='planted')??[];const fuse=armed.length?Math.min(...armed.map(b=>b.explodeAt)):null;
   const me=snap?.players.find(p=>p.id===room.current?.sessionId);const remaining=snap?Math.max(0,Math.ceil(((fuse??snap.endsAt)-snap.time)/1000)):600;const time=(snap?.mode??selectedMode)==='defusal'&&fuse===null?'∞':`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
@@ -122,12 +123,13 @@ export default function Game(){
             <div className="card-heading"><span>CREATE YOUR ROOM</span></div>
             <fieldset className="map-select" disabled={busy}><legend>CHOOSE YOUR MAP</legend><div>{Object.values(MAPS).map(m=><button type="button" key={m.id} aria-pressed={selectedMap===m.id} onClick={()=>{selectMap(m.id);}}><strong>{m.name}</strong><small>{m.subtitle}</small></button>)}</div></fieldset>
             <fieldset className="mode-select" disabled={busy}><legend>GAME MODE</legend><button type="button" aria-pressed={selectedMode==='defusal'} onClick={()=>setSelectedMode('defusal')}>BOMB DEFUSAL</button><button type="button" aria-pressed={selectedMode==='deathmatch'} onClick={()=>setSelectedMode('deathmatch')}>DEATHMATCH</button></fieldset>
+            <label className="fun-option"><span><strong>More fun</strong></span><input type="checkbox" role="switch" aria-label="More fun" checked={moreFun} onChange={e=>setMoreFun(e.target.checked)} disabled={busy}/></label>
             <div className="team-character-picker">{(['red','blue'] as const).map(team=><AvatarPicker key={team} label={`${TEAMS[team].name.toUpperCase()} CHARACTER`} value={teamAvatars[team]} onChange={avatar=>chooseTeamCharacter(team,avatar)} disabled={busy}/>)}</div>
             <button className="primary" type="submit" disabled={busy}>{busy?'CREATING…':'CREATE A ROOM'} <span>↗</span></button>
           </form>:<form className="join-card profile-card" onSubmit={e=>{e.preventDefault();void join();}}>
             <div className="card-heading"><span>{createdHere?'ROOM CREATED':'INVITATION RECEIVED'}</span></div>
             <h2>Choose your callsign.</h2><p className="profile-description">Join a balanced team. Your character is assigned automatically.</p>
-            <div className="profile-room"><span>{map.name}</span><span>{defusal?'BOMB DEFUSAL':'TEAM DEATHMATCH'}</span></div>
+            <div className="profile-room"><span>{map.name}</span><span>{defusal?'BOMB DEFUSAL':'TEAM DEATHMATCH'}</span><span>{moreFun?'MORE FUN':'CLASSIC'}</span></div>
             <label htmlFor="callsign">YOUR CALLSIGN</label><div className="entry"><span className="input-icon">⌁</span><input key="profile-callsign" id="callsign" maxLength={20} placeholder="Enter a guest nickname" value={name} onChange={e=>setName(e.target.value)} autoComplete="nickname" autoFocus required disabled={busy}/></div>
             <button className="primary" type="submit" disabled={!ready||busy||!name.trim()}>{busy?'CONNECTING…':!ready?'PREPARING ARENA…':createdHere?'ENTER THE ROOM':'JOIN THE ROOM'}<span>↗</span></button>
             <div className="card-foot"><span className="dot"/> Team A · {characterName(teamAvatars.red)} / Team B · {characterName(teamAvatars.blue)}</div>

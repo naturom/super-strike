@@ -1,3 +1,6 @@
+import {DogModels} from './dog-model';
+import {Locomotion,firstPersonGait} from './locomotion';
+import {updateWeaponFlower} from './flower-gun';
 import {ShotFeedback} from './shot-feedback';
 import {ShotFlight} from './shot-flight';
 import {HiddenInput} from './hidden-input';
@@ -13,7 +16,7 @@ import {SprayMarks} from './sprays';
 import * as THREE from 'three';
 import {Sky} from 'three/examples/jsm/objects/Sky.js';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import {nearbyLadder,direction,rayPlayer,rayTrex,GRENADE_BLAST,grenadeThrowProgress,MAPS,DEFAULT_MAP,DT,WEAPONS,gunRecoil,isSidearm,move,wallDistance,plantSite,canReachBomb,neutralInput,eyeOf,nearestPickup,weaponLabel,isGun,type AvatarId,type Team,type MapId,type Equipment,type Motion,type Input,type Snapshot,type Player,type CombatEvent} from '@sirocco/shared';
+import {nearbyLadder,direction,rayPlayer,rayTrex,rayDog,GRENADE_BLAST,grenadeThrowProgress,MAPS,DEFAULT_MAP,DT,WEAPONS,gunRecoil,isSidearm,move,wallDistance,plantSite,canReachBomb,neutralInput,eyeOf,nearestPickup,weaponLabel,isGun,type AvatarId,type Team,type MapId,type Equipment,type Motion,type Input,type Snapshot,type Player,type CombatEvent} from '@sirocco/shared';
 import {tourForMap} from './map-tour';
 import {solidGeometry} from './map-geometry';
 import {GameAudio} from './audio';
@@ -38,6 +41,7 @@ export class Arena {
   private equippedAt=0;
   private explosions:ExplosionEffects;private blastShake={start:0,duration:1,strength:0};
   private mirrors:SpawnMirrors;private appearance:AvatarId='ironman';private sprayMarks:SprayMarks;private spray=false;
+  private dog=false;private dogModels:DogModels;
   private summon=false;private hiddenInput=new HiddenInput();private trexModels:TrexModels;
   private tourIndex:number|null=null;private impactMarks:ImpactMarks;private deadBodies=new DeadBodies();
   private art:WorldArt;private audio=new GameAudio();private world?:RAPIER.World;private physicsReady=false;private rapier?:typeof RAPIER;private physicsLoad?:Promise<void>;
@@ -48,6 +52,7 @@ export class Arena {
   private bombMeshes=new Map<Team,THREE.Group>();private lastBombBeeps=new Map<Team,number>();
   private particles:{body:RAPIER.RigidBody;until:number}[]=[];
   private debrisInstances:THREE.InstancedMesh;private debrisTransform=new THREE.Object3D();
+  private viewGait=new Locomotion();private gaitViewer='';
   private shotFeedback=new ShotFeedback();private predictedShots:CombatEvent[]=[];
   private traces:{object:THREE.Line;until:number;flight?:ShotFlight;localWeapon?:keyof typeof MUZZLE_Z;worldWeapon?:keyof typeof MUZZLE_Z;shooter:string}[]=[];
   private snapshots:{state:Snapshot;received:number}[]=[];private pending:Input[]=[];
@@ -62,7 +67,7 @@ export class Arena {
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.95;
     this.sprayMarks=new SprayMarks(this.scene);this.impactMarks=new ImpactMarks(this.scene);
     this.explosions=new ExplosionEffects(this.scene,this.reduceMotion);
-    this.art=new WorldArt(this.renderer);this.trexModels=new TrexModels(this.art,this.scene);this.mirrors=new SpawnMirrors(this.art,this.scene);this.scene.fog=new THREE.Fog('#d5cbb4',120,280);
+    this.art=new WorldArt(this.renderer);this.trexModels=new TrexModels(this.art,this.scene);this.dogModels=new DogModels(this.art,this.scene);this.mirrors=new SpawnMirrors(this.art,this.scene);this.scene.fog=new THREE.Fog('#d5cbb4',120,280);
     this.debrisInstances=new THREE.InstancedMesh(new THREE.BoxGeometry(.05,.05,.05),this.art.trim,64);this.debrisInstances.name='combatDebris';this.debrisInstances.count=0;this.debrisInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.debrisInstances.castShadow=this.debrisInstances.receiveShadow=true;this.debrisInstances.frustumCulled=false;this.scene.add(this.debrisInstances);
     const sky=new Sky();sky.scale.setScalar(350);const u=sky.material.uniforms;u.turbidity.value=5;u.rayleigh.value=1.4;u.mieCoefficient.value=.005;u.mieDirectionalG.value=.8;u.sunPosition.value.set(-35,42,28);this.scene.add(sky);
     this.scene.add(new THREE.HemisphereLight('#d4e3ed','#96846b',.85));const sun=new THREE.DirectionalLight('#fff0d8',3.1);sun.position.set(-60,95,45);sun.castShadow=true;sun.shadow.radius=2;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-80,right:80,top:80,bottom:-80,near:1,far:230});sun.shadow.camera.updateProjectionMatrix();sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;this.scene.add(sun);
@@ -76,7 +81,7 @@ export class Arena {
   }
   preview(index:number|null){this.tourIndex=index;}
   setMap(mapId:MapId){
-    if(this.mapRoot&&this.mapId===mapId)return;this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.mapId=mapId;this.scene.fog=new THREE.Fog(mapId==='dunes'?'#d5cbb4':'#bdcbd0',120,280);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
+    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.mapId=mapId;this.scene.fog=new THREE.Fog(mapId==='dunes'?'#d5cbb4':'#bdcbd0',120,280);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
     for(const mesh of this.pickups.values())disposeGroup(mesh);this.pickups.clear();
     for(const p of MAPS[mapId].pickups){const g=new THREE.Group(),gun=this.art.weapon(p.weapon,false);gun.scale.setScalar(.8);gun.rotation.z=Math.PI/2;g.add(gun);const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.018,6,32),new THREE.MeshBasicMaterial({color:'#e9b065'}));ring.rotation.x=Math.PI/2;ring.position.y=-.35;g.add(ring);g.position.set(p.x,p.y+.8,p.z);g.userData.floor=p.y;this.scene.add(g);this.pickups.set(p.id,g);}
     if(this.physicsReady)this.resetPhysics();
@@ -94,7 +99,7 @@ export class Arena {
   private syncSpectator(cycle=false){
     const target=this.snap&&(cycle?this.spectator.next(this.snap,this.id):this.spectator.sync(this.snap,this.id)),id=target?.id??null;
     if(id!==this.shownSpectator){
-      this.audio.cancelReload(this.shownSpectator??this.id);this.shownSpectator=id;this.resetScope();this.recoil=0;this.flashUntil=this.cycleUntil=this.hurtUntil=0;this.swingStarted=-Infinity;this.flash.visible=false;this.stanceMotion=new StanceMotion();this.keys.clear();this.grenadePress=this.fire=this.jump=this.reload=this.interact=this.spray=this.summon=false;
+      this.audio.cancelReload(this.shownSpectator??this.id);this.shownSpectator=id;this.resetScope();this.recoil=0;this.flashUntil=this.cycleUntil=this.hurtUntil=0;this.swingStarted=-Infinity;this.flash.visible=false;this.stanceMotion=new StanceMotion();this.keys.clear();this.grenadePress=this.fire=this.jump=this.reload=this.interact=this.spray=this.dog=false;this.summon=false;
       this.callbacks.spectate?.(id);
     }
     return target||undefined;
@@ -104,8 +109,8 @@ export class Arena {
     const hold=firstPersonHold(weapon);this.gun.position.set(...hold.position);this.gun.rotation.set(hold.pitch,hold.yaw,0);this.localSteps.reset();this.localLanding.reset();
   }
   private scopeContext(){const me=this.snap?.players.find(p=>p.id===this.id);return {weapon:this.weapon,alive:!!me?.hp,locked:document.pointerLockElement===this.canvas,reloading:!!me&&me.reloadUntil>this.snap!.time,sprinting:this.keys.has('ShiftLeft')||this.keys.has('ShiftRight'),playing:this.active&&this.snap?.phase==='playing'};}
-  start(id:string){void this.loadPhysics();this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.trexModels.clear();this.playerNames.clear();this.hiddenInput.reset();this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.resetScope();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.id=id;this.active=true;this.pending=[];this.seq=0;this.snap=undefined;this.snapshots=[];this.keys.clear();this.prompt='';}
-  stop(){this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.trexModels.clear();this.playerNames.clear();this.hiddenInput.reset();this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.sprayMarks.clear();this.spray=false;this.grenadePress=false;this.resetScope();this.audio.stopCombat();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.blastShake.strength=0;this.audio.stopExplosions();this.explosions.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.shotFeedback.reset();this.predictedShots=[];this.active=false;this.snap=undefined;this.gun.visible=false;this.pending=[];document.exitPointerLock();this.callbacks.pickup('');for(const a of this.avatars.values())a.visible=false;for(const g of this.grenadeMeshes.values())disposeGroup(g);this.grenadeMeshes.clear();}
+  start(id:string){void this.loadPhysics();this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.resetScope();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.id=id;this.active=true;this.pending=[];this.seq=0;this.snap=undefined;this.snapshots=[];this.keys.clear();this.prompt='';}
+  stop(){this.spectator.reset();this.shownSpectator=null;this.callbacks.spectate?.(null);this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.dog=false;this.summon=false;this.impactMarks.clear();this.deadBodies.clear();this.sprayMarks.clear();this.spray=false;this.grenadePress=false;this.resetScope();this.audio.stopCombat();this.localSteps.reset();this.localLanding.reset();this.remoteStep.clear();this.remoteLanding.clear();this.blastShake.strength=0;this.audio.stopExplosions();this.explosions.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.shotFeedback.reset();this.predictedShots=[];this.active=false;this.snap=undefined;this.gun.visible=false;this.pending=[];document.exitPointerLock();this.callbacks.pickup('');for(const a of this.avatars.values())a.visible=false;for(const g of this.grenadeMeshes.values())disposeGroup(g);this.grenadeMeshes.clear();}
   lock(){if(this.active){void this.canvas.requestPointerLock();this.audio.unlock();}}
   setEffects(on:boolean){this.audio.setEnabled(on);}
   update(s:Snapshot){
@@ -143,9 +148,12 @@ export class Arena {
   combat(e:CombatEvent,predicted=false){
     const mine=e.shooter===this.id||e.shooter===this.spectator?.targetId,where=mine?undefined:e.from,occluded=!!where&&this.soundOccluded(where);
     if(e.impact)this.impactMarks.add(e.impact);
+    if(e.type==='dogDeploy'||e.type==='dogBite'){this.audio.dog(e.from);return;}
+    if(e.type==='dogDeath')return;
     if(e.type==='trexRoar'||e.type==='trexAttack'||e.type==='trexDeath'){this.audio.creature(e.type==='trexRoar'?'trex-roar':e.type==='trexAttack'?'trex-bite':'trex-death',e.from,this.soundOccluded(e.from));return;}
     if(e.type==='damage'&&e.target===this.id){this.hurtUntil=performance.now()+300;this.audio.hurt();const angle=Math.atan2(e.from.x-this.predicted.x,-(e.from.z-this.predicted.z))+this.yaw;this.callbacks.damage(angle);return;}
     if(e.type==='spray'){this.audio.spray(mine?undefined:e.to,!!(!mine&&this.soundOccluded(e.to)));return;}
+    if(e.type==='flower'){this.audio.flower(where);if(mine)this.resetScope();return;}
     if(e.type==='reload'){if(isGun(e.weapon))this.audio.reload(e.weapon,e.shooter,where,occluded);return;}
     if(e.type==='bombAction'){this.audio.bombAction(where);return;}
     if(e.type==='bombPlant'){this.audio.bombPlanted(e.from);this.lastBombBeeps.clear();return;}
@@ -207,6 +215,7 @@ export class Arena {
     let distance=Math.min(150,wallDistance(from,dir,MAPS[this.mapId].solids));
     for(const p of this.snap.players){if(p.id===this.id||p.hp<=0)continue;const hit=rayPlayer(from,dir,p);if(hit)distance=Math.min(distance,hit.distance);}
     for(const t of this.snap.trexes??[]){if(t.hp<=0)continue;const hit=rayTrex(from,dir,t);if(hit)distance=Math.min(distance,hit.distance);}
+    for(const dog of this.snap.dogs??[]){if(dog.hp<=0)continue;const hit=rayDog(from,dir,dog);if(hit)distance=Math.min(distance,hit.distance);}
     this.predictedShots.push({id:-input.seq,type:'shot',shooter:this.id,team:me.team,weapon,from,to:{x:from.x+dir.x*distance,y:from.y+dir.y*distance,z:from.z+dir.z*distance},inputSeq:input.seq,spawnId:me.spawnId});
   }
 
@@ -228,8 +237,8 @@ export class Arena {
       const before=spectated&&(a?.state.players.find(p=>p.id===spectated.id)??spectated),after=spectated&&(b?.state.players.find(p=>p.id===spectated.id)??spectated),viewPose=before&&after?spectatorPose(before,after,t):undefined;
       this.accumulator=Math.min(this.accumulator+dt,DT*3);
       while(this.accumulator>=DT){this.accumulator-=DT;const live=!!locked&&!!me&&me.hp>0&&this.snap.phase==='playing';
-        const i:Input={...neutralInput(),seq:++this.seq,spawnId:me?.spawnId,scope:live&&this.scope.level?this.scope.level:undefined,forward:live?Number(this.keys.has('KeyW'))-Number(this.keys.has('KeyS')):0,strafe:live?Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA')):0,yaw:this.yaw,pitch:this.pitch,jump:live&&this.jump,sprint:live&&(this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')),fire:live&&(this.fire||this.weapon==='grenade'&&this.grenadePress),reload:live&&this.reload,weapon:this.weapon,crouch:live&&(this.keys.has('KeyC')||this.keys.has('ControlLeft')||this.keys.has('ControlRight')),summon:live&&this.summon,spray:live&&this.spray,interact:live&&(this.interact||this.keys.has('KeyE'))};
-        this.grenadePress=this.jump=this.reload=this.interact=this.spray=this.summon=false;if(me?.hp&&this.snap.phase==='playing')this.predicted=move(this.predicted,i,solids,MAPS[this.mapId].ladders);this.pending.push(i);if(this.pending.length>90)this.pending.shift();if(me&&this.snap.phase==='playing')this.predictShot(i,me,now);this.callbacks.input(i);
+        const i:Input={...neutralInput(),seq:++this.seq,spawnId:me?.spawnId,scope:live&&this.scope.level?this.scope.level:undefined,forward:live?Number(this.keys.has('KeyW'))-Number(this.keys.has('KeyS')):0,strafe:live?Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA')):0,yaw:this.yaw,pitch:this.pitch,jump:live&&this.jump,sprint:live&&(this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')),fire:live&&(this.fire||this.weapon==='grenade'&&this.grenadePress),reload:live&&this.reload,weapon:this.weapon,crouch:live&&(this.keys.has('KeyC')||this.keys.has('ControlLeft')||this.keys.has('ControlRight')),summon:live&&this.summon,dog:live&&this.dog,spray:live&&this.spray,interact:live&&(this.interact||this.keys.has('KeyE'))};
+        this.grenadePress=this.jump=this.reload=this.interact=this.spray=this.dog=false;this.summon=false;if(me?.hp&&this.snap.phase==='playing')this.predicted=move(this.predicted,i,solids,MAPS[this.mapId].ladders);this.pending.push(i);if(this.pending.length>90)this.pending.shift();if(me&&this.snap.phase==='playing')this.predictShot(i,me,now);this.callbacks.input(i);
         const gait=this.localSteps.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');
         const impact=this.localLanding.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');if(impact)this.audio.land(impact.strength,undefined,surfaceAt(this.predicted,solids));
         if(gait)this.audio.step(gait.crouched,undefined,surfaceAt(this.predicted,solids),gait.sprint);
@@ -239,7 +248,8 @@ export class Arena {
       else this.camera.position.lerp(new THREE.Vector3(this.predicted.x,this.predicted.y+(me?.hp?eyeOf(this.predicted):.55),this.predicted.z),Math.min(1,dt*22));
       this.camera.rotation.set((viewPose?.pitch??this.pitch)+(this.reduceMotion?0:this.recoil*.32+hurt*.035)+Math.sin(now*.043)*shake,(viewPose?.yaw??this.yaw)+Math.sin(now*.037)*shake*.55,this.reduceMotion?0:Math.sin(now*.06)*hurt*.012+Math.sin(now*.051)*shake*.5);
       this.audio.listener={x:this.camera.position.x,y:this.camera.position.y,z:this.camera.position.z};this.audio.yaw=viewPose?.yaw??this.yaw;
-      const moving=spectated?!!before&&!!after&&Math.hypot(after.x-before.x,after.z-before.z)>.005:this.keys.has('KeyW')||this.keys.has('KeyA')||this.keys.has('KeyS')||this.keys.has('KeyD');
+      const gaitViewer=`${viewPlayer?.id}:${viewPlayer?.spawnId}`;if(this.gaitViewer!==gaitViewer){this.gaitViewer=gaitViewer;this.viewGait=new Locomotion();}
+      const gait=this.viewGait.update(viewPose??viewMotion,viewPose?.yaw??this.yaw,dt,viewMotion.grounded,!!viewMotion.crouched,!!viewMotion.climbing),steps=firstPersonGait(gait,this.reduceMotion);
       if(me&&me.hp>0&&me.hp<=30&&now-this.lastBeat>1150){this.audio.heartbeat();this.lastBeat=now;}
       if(viewPlayer)this.setAppearance(viewPlayer.avatar);this.setGun(viewWeapon);const scopeLevel=spectated?(viewWeapon==='marksman'?spectated.scope??0:0):this.scope.sync(this.scopeContext());if(scopeLevel!==this.shownScope){this.shownScope=scopeLevel;this.callbacks.scope(scopeLevel);}
       const targetFov=scopeFov(scopeLevel);this.camera.fov=this.reduceMotion?targetFov:THREE.MathUtils.lerp(this.camera.fov,targetFov,Math.min(1,dt*22));if(Math.abs(this.camera.fov-targetFov)<.01)this.camera.fov=targetFov;this.camera.updateProjectionMatrix();
@@ -252,11 +262,11 @@ export class Arena {
       const plantProgress=planting?THREE.MathUtils.clamp((this.snap.time-planting.startedAt)/(planting.completeAt-planting.startedAt),0,1):0;
       const draw=this.reduceMotion?0:Math.max(0,1-(now-this.equippedAt)/240);
       const hold=firstPersonHold(viewWeapon),stance=firstPersonStance(this.stanceMotion.update(dt,viewMotion.grounded,!!viewMotion.crouched,viewMotion.vy),this.reduceMotion);
-      this.gun.position.set(hold.position[0],hold.position[1]+stance.y+(!this.reduceMotion&&moving?Math.sin(now*.013)*.007:0)-draw*.14-plantProgress*.06,hold.position[2]+stance.z+this.recoil+draw*.12);
+      this.gun.position.set(hold.position[0]+steps.x,hold.position[1]+stance.y+steps.y-draw*.14-plantProgress*.06,hold.position[2]+stance.z+steps.z+this.recoil+draw*.12);
       this.gun.rotation.y=hold.yaw;
       this.gun.rotation.x=THREE.MathUtils.lerp(this.gun.rotation.x,hold.pitch+stance.pitch+(reloadProgress?-.3*Math.sin(Math.PI*reloadProgress):0),Math.min(1,dt*14));
-      this.gun.rotation.z=THREE.MathUtils.lerp(this.gun.rotation.z,reloadProgress?-.24*Math.sin(Math.PI*reloadProgress):0,Math.min(1,dt*14));
-      const held=this.gunModels.get(viewWeapon);if(held){animateHands(held,viewWeapon,{reload:reloadProgress,throwProgress,plant:plantProgress,slash:slashProgress,reverseSlash:this.reverseSlash,reduceMotion:this.reduceMotion});const body=held.getObjectByName('equipmentBody'),action=body?.getObjectByName(viewWeapon==='marksman'?'bolt':'slide');if(action){const duration=viewWeapon==='marksman'?550:130,p=THREE.MathUtils.clamp(1-(this.cycleUntil-now)/duration,0,1);action.position.z=p>0&&p<1?Math.sin(p*Math.PI)*.055:0;}}
+      this.gun.rotation.z=THREE.MathUtils.lerp(this.gun.rotation.z,steps.roll+(reloadProgress?-.24*Math.sin(Math.PI*reloadProgress):0),Math.min(1,dt*14));
+      const held=this.gunModels.get(viewWeapon);if(held){updateWeaponFlower(held,isGun(viewWeapon)&&!!viewPlayer?.flowerWeapons?.includes(viewWeapon),now,this.art);animateHands(held,viewWeapon,{reload:reloadProgress,throwProgress,plant:plantProgress,slash:slashProgress,reverseSlash:this.reverseSlash,reduceMotion:this.reduceMotion});const body=held.getObjectByName('equipmentBody'),action=body?.getObjectByName(viewWeapon==='marksman'?'bolt':'slide');if(action){const duration=viewWeapon==='marksman'?550:130,p=THREE.MathUtils.clamp(1-(this.cycleUntil-now)/duration,0,1);action.position.z=p>0&&p<1?Math.sin(p*Math.PI)*.055:0;}}
       this.flash.visible=isGun(viewWeapon)&&now<this.flashUntil;
 
       const available=me&&me.hp?nearestPickup(me,this.snap.pickups,this.snap.time,solids):undefined;
@@ -278,6 +288,7 @@ export class Arena {
       }
       for(const p of this.snap.players){
        const own=p.id===this.id,viewed=p.id===(spectated?.id??this.id),avatar=this.avatar(p),hidden=viewed&&p.hp>0;if(avatar.userData.firstPersonHidden!==hidden){avatar.traverse(o=>o.layers.set(hidden?1:0));avatar.userData.firstPersonHidden=hidden;}avatar.visible=p.hp>0||!!p.death;
+       const heldWeapon=avatar.getObjectByName('equippedWeapon');if(heldWeapon)updateWeaponFlower(heldWeapon,isGun(p.weapon)&&!!p.flowerWeapons?.includes(p.weapon),now,this.art);
        const serverTime=this.snap.time+now-(this.snapshots.at(-1)?.received??now);
        if(p.hp<=0){if(p.death)this.deadBodies.pose(avatar,p,serverTime,solids);continue;}
        if(this.deadBodies.remove(p.id))resetAvatarMotion(avatar);
@@ -291,6 +302,7 @@ export class Arena {
        animateAvatarMotion(avatar,viewed?viewWeapon:p.weapon,viewed?{reload:reloadProgress,throwProgress,plant:plantProgress,slash:slashProgress,reverseSlash:this.reverseSlash,reduceMotion:this.reduceMotion}:{reload:remoteReload,plant:remotePlant,throwProgress:grenadeThrowProgress(p.grenadeThrow,serverTime),slash:1},dt,own?this.predicted.grounded:next.grounded,own?this.pitch:next.pitch,own?this.predicted:next);
        if(p.weapon==='grenade'&&p.grenades===0&&!p.grenadeThrow){const body=avatar.getObjectByName('equipmentBody');if(body)body.visible=false;}
       }
+      this.dogModels.update(this.snap.dogs??[],this.snap.time+now-(this.snapshots.at(-1)?.received??now),dt,this.camera);
       this.playerNames.update(this.snap.players,this.avatars,spectated?.id??this.id,this.camera,solids,dt,now);
       if(me?.hp===0&&!spectated)this.deadBodies.camera(this.camera,me,this.snap.time+now-(this.snapshots.at(-1)?.received??now),solids);
       this.trexModels.update(this.snap.trexes??[],this.snap.time+now-(this.snapshots.at(-1)?.received??now),dt,this.camera,trex=>{if(this.snap?.phase==='playing')this.audio.creature('trex-step',trex,this.soundOccluded(trex));},solids);
@@ -317,11 +329,11 @@ export class Arena {
     if(this.gun.visible){this.renderer.autoClear=false;this.renderer.clearDepth();this.renderer.render(this.viewScene,this.viewCamera);this.renderer.autoClear=true;}
     this.raf=requestAnimationFrame(this.frame);
   };
-  private keydown=(e:KeyboardEvent)=>{if(!this.active||e.target instanceof HTMLInputElement)return;if(['Tab','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ControlLeft','ControlRight','KeyC','KeyR','KeyQ','KeyE','KeyT','Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code))e.preventDefault();this.keys.add(e.code);if(e.code==='Tab')this.callbacks.board(true);if(e.code==='Space'&&this.snap?.mode==='defusal'&&this.snap.phase==='playing'&&this.snap.players.find(p=>p.id===this.id)?.hp===0){if(!e.repeat)this.syncSpectator(true);return;}if(!this.canAct())return;if(this.hiddenInput.key(e,performance.now()))this.summon=true;if(e.code==='KeyK'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)e.preventDefault();if(e.code==='Space'&&!e.repeat)this.jump=true;if(e.code==='KeyT'&&!e.repeat)this.spray=true;if(e.code==='KeyR'&&!e.repeat){this.reload=true;this.resetScope();}if(e.code==='KeyE'&&!e.repeat)this.interact=true;if(e.code==='Digit1')this.weapon='knife';if(e.code==='Digit2')this.weapon=this.snap?.players.find(p=>p.id===this.id)?.secondary??'pistol';if(e.code==='Digit3')this.weapon=this.snap?.players.find(p=>p.id===this.id)?.primary??'rifle';if(e.code==='KeyQ'&&!e.repeat){const me=this.snap?.players.find(p=>p.id===this.id);this.weapon=this.weapon===(me?.secondary??'pistol')?me?.primary??'rifle':me?.secondary??'pistol';}if(e.code==='Digit4')this.weapon='grenade';if(e.code==='Digit5'&&this.snap?.bombs.some(b=>b.carrierId===this.id))this.weapon='bomb';};
+  private keydown=(e:KeyboardEvent)=>{if(!this.active||e.target instanceof HTMLInputElement)return;if(['Tab','Space','KeyW','KeyA','KeyS','KeyD','ShiftLeft','ControlLeft','ControlRight','KeyC','KeyR','KeyQ','KeyE','KeyT','Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code))e.preventDefault();this.keys.add(e.code);if(e.code==='Tab')this.callbacks.board(true);if(e.code==='Space'&&this.snap?.mode==='defusal'&&this.snap.phase==='playing'&&this.snap.players.find(p=>p.id===this.id)?.hp===0){if(!e.repeat)this.syncSpectator(true);return;}if(!this.canAct())return;if(this.hiddenInput.key(e)){e.preventDefault();this.summon=true;}if(e.code==='Space'&&!e.repeat)this.jump=true;if(e.code==='KeyT'&&!e.repeat)this.spray=true;if(e.code==='KeyF'&&!e.repeat&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!this.snap?.players.find(p=>p.id===this.id)?.dogUsed){e.preventDefault();this.dog=true;}if(e.code==='KeyR'&&!e.repeat){this.reload=true;this.resetScope();}if(e.code==='KeyE'&&!e.repeat)this.interact=true;if(e.code==='Digit1')this.weapon='knife';if(e.code==='Digit2')this.weapon=this.snap?.players.find(p=>p.id===this.id)?.secondary??'pistol';if(e.code==='Digit3')this.weapon=this.snap?.players.find(p=>p.id===this.id)?.primary??'rifle';if(e.code==='KeyQ'&&!e.repeat){const me=this.snap?.players.find(p=>p.id===this.id);this.weapon=this.weapon===(me?.secondary??'pistol')?me?.primary??'rifle':me?.secondary??'pistol';}if(e.code==='Digit4')this.weapon='grenade';if(e.code==='Digit5'&&this.snap?.bombs.some(b=>b.carrierId===this.id))this.weapon='bomb';};
   private keyup=(e:KeyboardEvent)=>{this.keys.delete(e.code);if(e.code==='Tab')this.callbacks.board(false);};
   private mousemove=(e:MouseEvent)=>{if(!this.canAct())return;const sensitivity=Math.tan(this.camera.fov*Math.PI/360)/Math.tan(BASE_FOV*Math.PI/360);this.yaw=(this.yaw-e.movementX*.002*sensitivity+Math.PI*3)%(Math.PI*2)-Math.PI;this.pitch=THREE.MathUtils.clamp(this.pitch-e.movementY*.002*sensitivity,-1.5,1.5);};
   private mousedown=(e:MouseEvent)=>{if(!this.canAct())return;if(e.button===0){this.fire=true;if(this.weapon==='grenade')this.grenadePress=true;}if(e.button===2){e.preventDefault();this.scope.cycle(this.scopeContext());}};
   private contextmenu=(e:MouseEvent)=>{if(this.active&&document.pointerLockElement===this.canvas)e.preventDefault();};
-  private mouseup=(e:MouseEvent)=>{if(e.button===0)this.fire=false;};private blur=()=>{this.hiddenInput.reset();this.summon=false;this.resetScope();this.keys.clear();this.grenadePress=this.fire=this.jump=this.reload=this.interact=this.spray=false;};private lockchange=()=>{this.blur();this.callbacks.lock(document.pointerLockElement===this.canvas);};
-  destroy(){this.trexModels.clear();this.playerNames.clear();this.impactMarks.destroy();this.deadBodies.clear();this.mirrors.destroy();this.sprayMarks.destroy();this.explosions.destroy();this.destroyed=true;cancelAnimationFrame(this.raf);this.observer.disconnect();document.removeEventListener('keydown',this.keydown);document.removeEventListener('keyup',this.keyup);document.removeEventListener('mousemove',this.mousemove);document.removeEventListener('mousedown',this.mousedown);document.removeEventListener('mouseup',this.mouseup);this.canvas.removeEventListener('contextmenu',this.contextmenu);document.removeEventListener('pointerlockchange',this.lockchange);window.removeEventListener('blur',this.blur);this.scene.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Line)o.geometry.dispose();});this.viewScene.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.art.destroy();this.world?.free();this.debrisInstances.dispose();this.renderer.dispose();this.audio.destroy();}
+  private mouseup=(e:MouseEvent)=>{if(e.button===0)this.fire=false;};private blur=()=>{this.dog=false;this.summon=false;this.resetScope();this.keys.clear();this.grenadePress=this.fire=this.jump=this.reload=this.interact=this.spray=false;};private lockchange=()=>{this.blur();this.callbacks.lock(document.pointerLockElement===this.canvas);};
+  destroy(){this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.impactMarks.destroy();this.deadBodies.clear();this.mirrors.destroy();this.sprayMarks.destroy();this.explosions.destroy();this.destroyed=true;cancelAnimationFrame(this.raf);this.observer.disconnect();document.removeEventListener('keydown',this.keydown);document.removeEventListener('keyup',this.keyup);document.removeEventListener('mousemove',this.mousemove);document.removeEventListener('mousedown',this.mousedown);document.removeEventListener('mouseup',this.mouseup);this.canvas.removeEventListener('contextmenu',this.contextmenu);document.removeEventListener('pointerlockchange',this.lockchange);window.removeEventListener('blur',this.blur);this.scene.traverse(o=>{if(o instanceof THREE.Mesh||o instanceof THREE.Line)o.geometry.dispose();});this.viewScene.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.art.destroy();this.world?.free();this.debrisInstances.dispose();this.renderer.dispose();this.audio.destroy();}
 }

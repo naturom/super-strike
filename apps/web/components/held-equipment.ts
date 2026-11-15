@@ -11,7 +11,7 @@ import {createSuitGrip} from './suit-grip';
 import {WONDER_WOMAN_ARM_LIFT} from './wonder-woman-proportions';
 import {fitHandCuff} from './hand-cuff';
 import {boneClearsTorso,viewArmShoulder,viewSupportArm,wristAwareElbow} from './arm-ik';
-import {gunGrip} from './weapon-grips';
+import {gunGrip,sidearmGrip} from './weapon-grips';
 import {grenadeThrowPose} from './grenade-throw-pose';
 
 type Materials={fabric:THREE.Material;leather:THREE.Material;rubber:THREE.Material;seam:THREE.Material;sleeve:THREE.Material;accent:THREE.Material;glow:THREE.Material;avatar:AvatarId};
@@ -52,11 +52,11 @@ function armoredHand(m:Materials,left:boolean,open:boolean,kind:Equipment){
  for(let i=0;i<4;i++){
   const x=-.034+i*.023,index=(isGun(kind)||kind==='bomb')&&!left&&i===0;
   const front=-Math.sqrt(Math.max(.0015,.077**2-(.020-x)**2))-.041;
-  const points=kind==='grenade'&&!left&&!open?[[x,0,-.01],[x,-.012,-.055],[x,-.050,front],[x,-.09,front]]:open?[[x,0,-.019],[x,.001,-.066],[x,-.008,-.107],[x,-.023,-.127]]:index?[[x,0,-.02],[x,-.005,-.087],[x,-.035,-.108],[x,-.052,-.080]]:[[x,0,-.02],[x,-.005,-.064],[x,-.040,-.073],[x,-.060,-.025]];
-  for(let j=0;j<3;j++){limb(g,points[j],points[j+1],.0105-j*.001,.0095-j*.001,m.fabric);oval(g,[.0105,.0105,.0105],points[j],m.rubber);}
+  const points=isSidearm(kind)&&left?[[x,0,-.01],[x,-.012,-.062],[x,-.046,-.082],[x,-.080,-.060],[x,-.076,-.020]]:kind==='grenade'&&!left&&!open?[[x,0,-.01],[x,-.012,-.055],[x,-.050,front],[x,-.09,front]]:open?[[x,0,-.019],[x,.001,-.066],[x,-.008,-.107],[x,-.023,-.127]]:index?[[x,0,-.02],[x,-.005,-.087],[x,-.035,-.108],[x,-.052,-.080]]:[[x,0,-.02],[x,-.005,-.064],[x,-.040,-.073],[x,-.060,-.025]];
+  for(let j=0;j<points.length-1;j++){limb(g,points[j],points[j+1],.0105-j*.001,.0095-j*.001,m.fabric);oval(g,[.0105,.0105,.0105],points[j],m.rubber);}
   rounded(g,[.019,.009,.023],[x,.028,-.026],i===0?m.accent:m.fabric,.003);
  }
- const side=left?1:-1;const thumb=[[side*.043,0,.038],[side*.062,-.020,.003],[side*.047,-.047,-.027],[side*.024,-.054,-.035]];
+ const side=left?1:-1;const thumb=isSidearm(kind)&&left?[[side*.043,0,.038],[side*.065,-.012,.005],[side*.076,-.020,-.050],[side*.078,-.025,-.10]]:isSidearm(kind)?[[side*.043,0,.038],[side*.060,-.012,.005],[side*.048,-.020,-.050],[side*.035,-.025,-.10]]:[[side*.043,0,.038],[side*.062,-.020,.003],[side*.047,-.047,-.027],[side*.024,-.054,-.035]];
  for(let i=0;i<3;i++)limb(g,thumb[i],thumb[i+1],.013-i*.001,.012-i*.001,m.fabric);
  for(let i=0;i<3;i++)rounded(g,[.091,.013,.017],[0,.014,.071+i*.016],i===1?m.accent:m.fabric,.004);
  bake(g);return g;
@@ -71,7 +71,7 @@ function hand(m:Materials,left:boolean,open=false,kind:Equipment='rifle'){
     }return result;
   }
   if(m.avatar==='ultraman'||m.avatar==='wonder-woman'){
-    if(isGun(kind))return createSuitGrip(m.fabric,left,left?'support':'gun',false,m.avatar==='wonder-woman');
+    if(isGun(kind))return createSuitGrip(m.fabric,left,isSidearm(kind)?left?'sidearm-support':'sidearm':left?'support':'gun',false,m.avatar==='wonder-woman');
     if(kind==='bomb'||kind==='knife'||kind==='grenade')return createSuitGrip(m.fabric,left,left&&kind==='grenade'?'pin':kind,left&&kind!=='bomb',m.avatar==='wonder-woman');
   }
   const g=new THREE.Group();
@@ -199,7 +199,7 @@ export function addHands(art:WorldArt,body:THREE.Group,kind:Equipment,thirdPerso
   if(articulated(avatar)){
     right=[kind==='grenade'?.10:.064,kind==='knife'?0:kind==='grenade'?-.025:-.125,kind==='knife'?.045:.055];rr=[0,0,-Math.PI/2];
     if(isGun(kind)&&!isSidearm(kind)){left=[0,-.09,kind==='marksman'?-.37:kind==='smg'||kind==='p90'?-.255:-.38];lr=[0,0,Math.PI];}
-    if(isSidearm(kind)){right=[.063,-.131,.075];rr=[.20,.30,-1.40];left=[-.069,-.156,.037];lr=[.18,-.32,1.48];}
+    if(isSidearm(kind)){const grip=sidearmGrip(kind);right=[...grip.right];rr=[...grip.rightRotation];left=[...gunGrip(kind).support];lr=[...grip.supportRotation];}
     if(kind==='knife')body.rotation.set(0,0,0);
     if(kind==='bomb'){right=[.215,-.035,.045];left=[-.130,-.125,.05];rr=[0,0,-Math.PI/2];lr=[0,0,Math.PI];}
     if(kind==='grenade'){right=[.095,.035,.035];left=[-.22,-.045,.015];rr=[0,0,-Math.PI/2];lr=[.05,-.2,1.15];}
@@ -270,7 +270,7 @@ export function animateHands(root:THREE.Group,kind:Equipment,pose:HeldPose){
           const tray=1-THREE.MathUtils.smoothstep(p,.15,.26)+THREE.MathUtils.smoothstep(p,.76,.88);
           contact.lerp(new THREE.Vector3(-.09,.105,-.08),Math.min(1,tray));
         }
-        const palmRotation=kind==='p90'&&!root.userData.thirdPerson?[.35,-.45,Math.PI]:[root.userData.thirdPerson?0:.65,-.85,Math.PI/2];
+        const palmRotation=isSidearm(kind)?[...sidearmGrip(kind).supportRotation]:kind==='p90'&&!root.userData.thirdPerson?[.35,-.45,Math.PI]:[root.userData.thirdPerson?0:.65,-.85,Math.PI/2];
         placeIronPalm(rig.left,contact.toArray(),palmRotation,grab);
       }
     }

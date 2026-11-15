@@ -8,20 +8,20 @@ class Queue {
 /** Lazily cached outdoor navigation. No map-specific waypoints or player data
  * are baked into the graph, so creatures use the same cover and floor geometry. */
 export class TrexNavigation {
- private cache=new Map<string,Node|null>();private edges=new Map<string,Node[]>();readonly cell=1.1;
+ private cache=new Map<string,Node|null>();private edges=new Map<string,Node[]>();readonly cell:number;private radius:number;private height:number;private maxStep:number;
  readonly bounds:{minX:number;maxX:number;minZ:number;maxZ:number};
- constructor(readonly solids:Solid[],map:MapDefinition){this.bounds=map.bounds??{minX:-29,maxX:29,minZ:-23,maxZ:23};}
+ constructor(readonly solids:Solid[],map:MapDefinition,profile:{radius?:number;height?:number;cell?:number;maxStep?:number}={}){this.cell=profile.cell??1.1;this.radius=profile.radius??TREX_RULES.radius;this.height=profile.height??TREX_RULES.height;this.maxStep=profile.maxStep??.65;this.bounds=map.bounds??{minX:-29,maxX:29,minZ:-23,maxZ:23};}
  point(x:number,z:number):Vec3|undefined{
-  const b=this.bounds;if(x<b.minX+TREX_RULES.radius||x>b.maxX-TREX_RULES.radius||z<b.minZ+TREX_RULES.radius||z>b.maxZ-TREX_RULES.radius)return;
-  const p={x,y:groundAt({x,z},this.solids,5.5),z};if(this.solids.some(s=>intersects({...p,y:p.y+.012},s,TREX_RULES.height,TREX_RULES.radius)))return;return p;
+  const b=this.bounds;if(x<b.minX+this.radius||x>b.maxX-this.radius||z<b.minZ+this.radius||z>b.maxZ-this.radius)return;
+  const p={x,y:groundAt({x,z},this.solids,5.5),z};if(this.solids.some(s=>intersects({...p,y:p.y+.012},s,this.height,this.radius)))return;return p;
  }
  outdoors(p:Vec3){return !this.solids.some(s=>footprint(p,s,.3)&&s.y-s.h/2>p.y+.05&&s.y-s.h/2<p.y+10&&solidTop(s,p)>p.y+.1);}
  private node(ix:number,iz:number){const key=`${ix},${iz}`;if(this.cache.has(key))return this.cache.get(key)!;const p=this.point(this.bounds.minX+ix*this.cell,this.bounds.minZ+iz*this.cell),node=p?{...p,key,ix,iz}:null;this.cache.set(key,node);return node;}
  nearest(p:Vec3,rings=6){const ix=Math.round((p.x-this.bounds.minX)/this.cell),iz=Math.round((p.z-this.bounds.minZ)/this.cell);let best:Node|undefined,score=Infinity;
   for(let r=0;r<=rings;r++){for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++){if(r&&Math.abs(x)!==r&&Math.abs(z)!==r)continue;const n=this.node(ix+x,iz+z);if(!n)continue;const d=Math.hypot(n.x-p.x,n.z-p.z)+Math.abs(n.y-p.y)*.3;if(d<score){best=n;score=d;}}if(best&&score<(r+.5)*this.cell)break;}return best;
  }
- clear(a:Vec3,b:Vec3){const distance=Math.hypot(b.x-a.x,b.z-a.z),steps=Math.max(1,Math.ceil(distance/.28));let y=a.y;for(let i=1;i<=steps;i++){const t=i/steps,p=this.point(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t);if(!p||Math.abs(p.y-y)>.65)return false;y=p.y;}return true;}
- private neighbors(node:Node){let result=this.edges.get(node.key);if(result)return result;result=[];for(let x=-1;x<=1;x++)for(let z=-1;z<=1;z++){if(!x&&!z)continue;const next=this.node(node.ix+x,node.iz+z);if(next&&Math.abs(next.y-node.y)<=.65&&this.clear(node,next))result.push(next);}this.edges.set(node.key,result);return result;}
+ clear(a:Vec3,b:Vec3){const distance=Math.hypot(b.x-a.x,b.z-a.z),steps=Math.max(1,Math.ceil(distance/.28));let y=a.y;for(let i=1;i<=steps;i++){const t=i/steps,p=this.point(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t);if(!p||Math.abs(p.y-y)>this.maxStep)return false;y=p.y;}return true;}
+ private neighbors(node:Node){let result=this.edges.get(node.key);if(result)return result;result=[];for(let x=-1;x<=1;x++)for(let z=-1;z<=1;z++){if(!x&&!z)continue;const next=this.node(node.ix+x,node.iz+z);if(next&&Math.abs(next.y-node.y)<=this.maxStep&&this.clear(node,next))result.push(next);}this.edges.set(node.key,result);return result;}
  path(from:Vec3,to:Vec3){const start=this.nearest(from,3),goal=this.nearest(to);if(!start||!goal)return [];const open=new Queue(),cost=new Map<string,number>([[start.key,0]]),came=new Map<string,Node>(),closed=new Set<string>();open.push(start,0);let node:Node|undefined;
   for(let i=0;i<2400&&(node=open.pop());i++){if(closed.has(node.key))continue;if(node.key===goal.key){const route:Vec3[]=[node];while(node.key!==start.key){node=came.get(node.key)!;route.push(node);}route.reverse();if(route.length&&this.clear(from,route[0]))return route;return [];}
    closed.add(node.key);for(const next of this.neighbors(node)){const score=cost.get(node.key)!+Math.hypot(next.x-node.x,next.z-node.z)+Math.abs(next.y-node.y)*.6;if(score>=(cost.get(next.key)??Infinity))continue;cost.set(next.key,score);came.set(next.key,node);open.push(next,score+Math.hypot(goal.x-next.x,goal.z-next.z));}}

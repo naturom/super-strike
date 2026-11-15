@@ -9,11 +9,14 @@ import {TREX_RULES,rayTrex,MAPS,neutralInput,validInput,direction,intersects,typ
 
 function fixture(){const s=new Simulation([]),p=s.add('a','Summoner');Object.assign(p,{x:0,y:0,z:10,yaw:0,pitch:0,protectedUntil:0});return {s,p};}
 function summon(s:Simulation,p:Player){s.input(p.id,{...neutralInput(),seq:p.ack+1,yaw:p.yaw,summon:true});s.step();return s.trexes.at(-1)!;}
-test('the hidden gesture requires two deliberate presses and is absent from visible controls',()=>{
- const input=new HiddenInput(),key={code:'KeyK',repeat:false};assert.equal(input.key(key,100),false);assert.equal(input.key({...key,repeat:true},150),false);assert.equal(input.key(key,400),true);assert.equal(input.key(key,500),false);assert.equal(input.key(key,1000),false);assert.equal(input.key(key,1200),true);
- input.reset();assert.equal(input.key(key,1400),false);input.key({code:'KeyW',repeat:false},1500);assert.equal(input.key(key,1600),false);assert.equal(input.key({...key,ctrlKey:true},1650),false);assert.equal(input.key(key,1700),false);
+test('the hidden shortcut uses one G press, ignores repeats and modifiers, and is absent from visible controls',()=>{
+ const input=new HiddenInput(),key={code:'KeyG',repeat:false};
+ assert.equal(input.key(key),true);assert.equal(input.key({...key,repeat:true}),false);
+ for(const modifier of ['ctrlKey','metaKey','altKey'])assert.equal(input.key({...key,[modifier]:true}),false);
+ assert.equal(input.key({code:'KeyK',repeat:false}),false);assert.equal(input.key({code:'KeyK',repeat:false}),false);
+ assert.equal(input.key({code:'KeyW',repeat:false}),false);assert.equal(input.key(key),true);
  assert.equal(validInput({...neutralInput(),summon:true}),true);assert.equal(validInput({...neutralInput(),summon:'yes'}),false);
- const ui=readFileSync('apps/web/components/Game.tsx','utf8');assert.ok(!/KeyK|double.?K|summon|<kbd>K<\/kbd>/i.test(ui));
+ const ui=readFileSync('apps/web/components/Game.tsx','utf8');assert.ok(!/KeyG|summon|<kbd>G<\/kbd>/i.test(ui));
 });
 test('summons appear on navigable ground ahead, have ten times player HP, and never exceed three',()=>{
  const {s,p}=fixture();summon(s,p);const first=s.trexes[0];assert.equal(first.hp,1000);assert.equal(first.hp,p.hp*10);assert.ok(first.z<p.z);assert.equal(first.y,0);assert.equal(s.events.filter(e=>e.type==='trexRoar').length,1);

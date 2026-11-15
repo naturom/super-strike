@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {mergeGeometries,mergeVertices} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {fitHandCuff} from './hand-cuff';
 
-type Grip='knife'|'grenade'|'bomb'|'gun'|'support'|'pin';
+type Grip='knife'|'grenade'|'bomb'|'gun'|'support'|'pin'|'sidearm'|'sidearm-support';
 const vector=(p:number[])=>new THREE.Vector3(p[0],p[1],p[2]);
 /** Smooth glove fingers with a rounded fingertip, rather than separate joint balls. */
 function finger(points:number[][],radius:number){
@@ -34,8 +34,9 @@ function shape(kind:Grip,left:boolean,typing=false,relaxed=false){
   const x=(-.034+i*.023)*mirror,short=i===3?.012:i===0?.006:0;
   let points:number[][];
   if(relaxed)points=[[x,0,-.012],[x,-.008,-.054+short],[x,-.035,-.054+short],[x,-.047,-.025+short],[x,-.035,-.002+short]];
-  else if(kind==='gun'&&i===0&&!left)points=[[x,0,-.012],[x,-.008,-.062],[x,-.028,-.094],[x,-.045,-.075]];
-  else if(kind==='gun'||kind==='support')points=[[x,0,-.012],[x,-.008,-.054+short],[x,-.038,-.068+short],[x,-.060,-.044+short],[x,-.055,-.010+short]];
+  else if(kind==='sidearm-support')points=[[x,0,-.012],[x,-.012,-.062+short],[x,-.046,-.082+short],[x,-.080,-.060+short],[x,-.076,-.020+short]];
+  else if((kind==='gun'||kind==='sidearm')&&i===0&&!left)points=[[x,0,-.012],[x,-.008,-.062],[x,-.028,-.094],[x,-.045,-.075]];
+  else if(kind==='gun'||kind==='support'||kind==='sidearm')points=[[x,0,-.012],[x,-.008,-.054+short],[x,-.038,-.068+short],[x,-.060,-.044+short],[x,-.055,-.010+short]];
   else if(kind==='knife'||kind==='pin')points=[[x,.002,-.012],[x,-.007,-.058+short],[x,-.036,-.075+short],[x,-.064,-.052+short],[x,-.059,-.018+short]];
   else if(kind==='grenade'){
    const radius=Math.sqrt(.071**2-x*x);points=[[x,-.004,-.016]];
@@ -46,7 +47,7 @@ function shape(kind:Grip,left:boolean,typing=false,relaxed=false){
   pieces.push(finger(points,i===3?.009:.0105));
  }
  const side=left?1:-1;
- const thumb=kind==='grenade'?[[side*.037,-.004,.055],[side*.060,-.026,.035],[side*.069,-.066,.018],[side*.056,-.092,-.001]]:kind==='knife'||kind==='gun'||kind==='support'?[[side*.036,-.003,.050],[side*.058,-.024,.018],[side*.048,-.052,-.004],[side*.022,-.060,-.011]]:typing?[[side*.036,-.003,.05],[side*.059,-.012,.014],[side*.067,-.024,-.016],[side*.053,-.039,-.031]]:[[side*.036,-.003,.054],[side*.065,-.008,.03],[side*.080,-.035,.002],[side*.078,-.055,-.018]];
+ const thumb=kind==='sidearm-support'?[[side*.036,-.003,.050],[side*.060,-.012,.005],[side*.073,-.020,-.050],[side*.075,-.025,-.10]]:kind==='sidearm'?[[side*.036,-.003,.050],[side*.052,-.012,.005],[side*.044,-.020,-.050],[side*.035,-.025,-.10]]:kind==='grenade'?[[side*.037,-.004,.055],[side*.060,-.026,.035],[side*.069,-.066,.018],[side*.056,-.092,-.001]]:kind==='knife'||kind==='gun'||kind==='support'?[[side*.036,-.003,.050],[side*.058,-.024,.018],[side*.048,-.052,-.004],[side*.022,-.060,-.011]]:typing?[[side*.036,-.003,.05],[side*.059,-.012,.014],[side*.067,-.024,-.016],[side*.053,-.039,-.031]]:[[side*.036,-.003,.054],[side*.065,-.008,.03],[side*.080,-.035,.002],[side*.078,-.055,-.018]];
  pieces.push(finger(thumb,.016));
  // The thumb's thenar pad blends its root into the palm.
  const pad=new THREE.SphereGeometry(1,20,16);pad.scale(.025,.025,.039);pad.translate(side*.031,-.006,.045);pad.deleteAttribute('uv');pieces.push(pad.toNonIndexed());pad.dispose();
