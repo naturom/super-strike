@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import {TREX_RULES,footprint,solidTop,type Solid,type Trex} from '@sirocco/shared';
+import {TREX_RULES,footprint,solidTop,solidGradient,type Solid,type Trex} from '@sirocco/shared';
 import {WorldArt,disposeGroup} from './world';
 
 type Palette={skin:THREE.Material;belly:THREE.Material;dark:THREE.Material;gum:THREE.Material;tooth:THREE.Material;eye:THREE.Material;pupil:THREE.Material};
@@ -70,7 +70,7 @@ function deathGround(trex:Trex,solids:Solid[]){
  let floor:Solid|undefined,height=-Infinity;
  for(const solid of solids)if(solid.kind==='floor'&&footprint(trex,solid,0)){const top=solidTop(solid,trex);if(top<=trex.y+.08&&top>height){floor=solid;height=top;}}
  const normal=new THREE.Vector3(0,1,0);
- if(floor?.ramp){const slope=(floor.ramp.to-floor.ramp.from)/(floor.ramp.axis==='x'?floor.w:floor.d);normal[floor.ramp.axis]=-slope;normal.normalize();}
+ if(floor){const slope=solidGradient(floor);normal.set(-slope.x,1,-slope.z).normalize();}
  return {point:new THREE.Vector3(trex.x,floor?height:trex.y,trex.z),normal};
 }
 /** Measure actual vertices against the supporting plane, rather than a world

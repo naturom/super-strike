@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {MAPS,ISLAND_COAST,ISLAND_WATER,ISLAND_SEABED,ISLAND_SIZE,WATER_RULES,fullySubmerged,inWater,groundAt,move,neutralInput,intersects,wallDistance,impactTarget,type Motion,type Player,type CombatEvent} from '@sirocco/shared';
+import {MAPS,ISLAND_COAST,ISLAND_WATER,ISLAND_SEABED,ISLAND_SIZE,WATER_RULES,fullySubmerged,inWater,groundAt,solidTop,move,neutralInput,intersects,wallDistance,impactTarget,type Motion,type Player,type CombatEvent} from '@sirocco/shared';
 import {Simulation} from '../apps/server/src/simulation';
 import {surfaceAt} from '../apps/web/components/combat-audio';
 import {RECORDED_AUDIO} from '../apps/web/components/recorded-audio';
@@ -24,7 +24,7 @@ test('no HP is lost during the first ten seconds underwater; subsequent loss is 
  const more=tick(s,90);assert.equal(p.hp,80);assert.equal(waterDamage(more).length,3);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});
 });
 test('wading has no time limit and exposing any part of the body resets the full-submersion timer',()=>{
- const {s,p}=diver();tick(s,250);const coast=ISLAND_COAST[0],shallow={x:coast[0]*1.015,z:coast[1]*1.015};Object.assign(p,shallow,{y:groundAt(shallow,map.solids),crouched:false});assert.equal(inWater(p,map.water),true);assert.equal(fullySubmerged(p,map.water),false);tick(s,1500);assert.equal(p.hp,100);
+ const {s,p}=diver();tick(s,250);const coast=ISLAND_COAST[0],shallow={x:coast[0]*1.06,z:coast[1]*1.06};Object.assign(p,shallow,{y:groundAt(shallow,map.solids),crouched:false});assert.equal(inWater(p,map.water),true);assert.equal(fullySubmerged(p,map.water),false);tick(s,1500);assert.equal(p.hp,100);
  Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100);tick(s,31);assert.equal(p.hp,95);
  s.spawn(p);tick(s,10);Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100,'respawn restores a full breath');
  s.finish();s.rematch();Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100,'new games clear prior exposure');
@@ -41,7 +41,7 @@ test('all shores can be waded down and walked back out, without hidden walls or 
   for(let i=0;i<115;i++)p=move(p,{...neutralInput(),yaw:Math.atan2(dx,dz),forward:1},map.solids);
   assert.equal(p.y,0,`shore ${index} can be exited without a jump`);assert.equal(p.grounded,true);
  }
- for(const b of ISLAND_SEABED){assert.ok(b.y+b.h/2<0);assert.ok(Math.abs(groundAt({x:b.x,z:b.z},[b])-(b.y+b.h/2))<1e-6);}
+ for(const b of ISLAND_SEABED){assert.ok(solidTop(b,b)<0);assert.ok(Math.abs(groundAt({x:b.x,z:b.z},[b])-solidTop(b,b))<1e-6);}
 });
 test('underwater rays hit the seabed and island instead of a phantom plane above the player',()=>{
  assert.ok(wallDistance({...deep,y:-1},{x:0,y:0,z:1},map.solids)>0);const hit=impactTarget({...deep,y:-1},{x:0,y:-1,z:0},map.solids);assert.ok(hit);assert.ok(Math.abs(hit.position.y-ISLAND_WATER.bed)<1e-6);assert.ok(Math.abs(wallDistance({...deep,y:-1},{x:0,y:-1,z:0},map.solids)-1.72)<1e-6);

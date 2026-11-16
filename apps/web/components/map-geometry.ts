@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {solidTop,type Solid} from '@sirocco/shared';
+import {solidGradient,solidTop,type Solid} from '@sirocco/shared';
 
 type Point = [number,number,number];
 type Plane = [number,number,number,number];
@@ -16,10 +16,8 @@ function clip(points:Point[],plane:Plane,inside:boolean):Point[]{
   return result;
 }
 function volumePlanes(b:Solid):Plane[]{
-  const slope=b.ramp?(b.ramp.to-b.ramp.from)/(b.ramp.axis==='x'?b.w:b.d):0;
-  const axis=b.ramp?.axis??'x',start=b[axis]-(axis==='x'?b.w:b.d)/2;
-  const intercept=b.ramp?b.ramp.from-slope*start:b.y+b.h/2;
-  return [[1,0,0,-b.x+b.w/2],[-1,0,0,b.x+b.w/2],[0,0,1,-b.z+b.d/2],[0,0,-1,b.z+b.d/2],[0,1,0,-b.y+b.h/2],[axis==='x'?slope:0,-1,axis==='z'?slope:0,intercept]];
+  const slope=solidGradient(b),intercept=solidTop(b,{x:b.x,z:b.z})-slope.x*b.x-slope.z*b.z;
+  return [[1,0,0,-b.x+b.w/2],[-1,0,0,b.x+b.w/2],[0,0,1,-b.z+b.d/2],[0,0,-1,b.z+b.d/2],[0,1,0,-b.y+b.h/2],[slope.x,-1,slope.z,intercept]];
 }
 
 /** Concave building footprints are clipped as a union of triangular prisms. */
@@ -29,7 +27,7 @@ function wallVolumes(b:Solid):Plane[][]{
   return THREE.ShapeUtils.triangulateShape(contour,[]).map(indices=>{
     const pts=indices.map(i=>b.polygon![i]),area=pts.reduce((n,p,i)=>n+p[0]*pts[(i+1)%3][1]-pts[(i+1)%3][0]*p[1],0),sign=Math.sign(area);
     const sides:Plane[]=pts.map((a,i)=>{const c=pts[(i+1)%3],dx=c[0]-a[0],dz=c[1]-a[1];return [-dz*sign,0,dx*sign,(dz*a[0]-dx*a[1])*sign];});
-    return [...sides,[0,1,0,-b.y+b.h/2],[0,-1,0,b.y+b.h/2]] as Plane[];
+    return [...sides,[0,1,0,-b.y+b.h/2],volumePlanes(b).at(-1)!] as Plane[];
   });
 }
 
@@ -89,8 +87,8 @@ export function solidGeometry(b:Solid):THREE.BufferGeometry {
     geometry.rotateX(-Math.PI/2);geometry.translate(0,b.y-b.h/2,0);
   }else{
     geometry=new THREE.BoxGeometry(b.w,b.h,b.d);geometry.translate(b.x,b.y,b.z);
-    if(b.ramp){const p=geometry.attributes.position;for(let i=0;i<p.count;i++)if(p.getY(i)>b.y)p.setY(i,solidTop(b,{x:p.getX(i),z:p.getZ(i)}));geometry.computeVertexNormals();}
   }
+  if(b.ramp||b.topPlane){const p=geometry.attributes.position;for(let i=0;i<p.count;i++)if(p.getY(i)>b.y)p.setY(i,solidTop(b,{x:p.getX(i),z:p.getZ(i)}));geometry.computeVertexNormals();}
   const p=geometry.attributes.position,n=geometry.attributes.normal,uv=geometry.attributes.uv;
   for(let i=0;i<p.count;i++)uv.setXY(i,(Math.abs(n.getX(i))>.5?p.getZ(i):p.getX(i))/3,(Math.abs(n.getY(i))>.5?p.getZ(i):p.getY(i))/3);
   return geometry;

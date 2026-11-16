@@ -18,13 +18,15 @@ function prism(label:string,polygon:[number,number][],height:number,style:Solid[
 }
 export const ISLAND_WATER={level:-.24,bed:-2.72,edge:1.44} as const;
 prism('Island ground',ISLAND_COAST,3.5,'earth',-3.5,'floor');
-// Eight small steps can be walked in either direction without a jump or hidden hole.
+// Connected sloping patches follow an eased depth profile, with no vertical risers.
 export const ISLAND_SEABED:Solid[]=[];
+const bedHeight=(ring:number)=>{const t=Math.min(1,ring/8);return ISLAND_WATER.bed*t*t*(3-2*t);};
 for(let ring=0;ring<9;ring++){
- const inner=1+ring*.03,outer=ring===8?ISLAND_WATER.edge:inner+.03,top=-Math.min(8,ring+1)*.34;
+ const inner=1+ring*.03,outer=ring===8?ISLAND_WATER.edge:1+(ring+1)*.03,from=bedHeight(ring),to=bedHeight(ring+1);
  for(let i=0;i<ISLAND_COAST.length;i++){
   const a=ISLAND_COAST[i],b=ISLAND_COAST[(i+1)%ISLAND_COAST.length],outline:[number,number][]=[[a[0]*inner,a[1]*inner],[b[0]*inner,b[1]*inner],[b[0]*outer,b[1]*outer],[a[0]*outer,a[1]*outer]];
-  ISLAND_SEABED.push(prism('Sandy seabed',outline,top+3.5,'sand',-3.5,'floor'));
+  const floor=prism('Sandy seabed',outline,Math.max(from,to)+3.5,'sand',-3.5,'floor'),nx=b[1]-a[1],nz=a[0]-b[0],gradient=(to-from)/(outer-inner),scale=gradient/(nx*a[0]+nz*a[1]);
+  floor.topPlane={x:nx*scale,z:nz*scale,offset:from-gradient*inner};ISLAND_SEABED.push(floor);
  }
 }
 // The outer limit sits well beyond the walkable shallows and deep seabed.

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_WATER,ISLAND_SEABED,ISLAND_COAST,ISLAND_SIZE,islandCoast,islandPathDistance} from '@sirocco/shared';
+import {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_WATER,ISLAND_COAST,ISLAND_SIZE,islandCoast,islandPathDistance} from '@sirocco/shared';
 import type {WorldArt} from './world';
 import {islandLog} from './island-log';
+import {islandSeabedGeometry} from './island-seabed';
+import {islandSiteSign} from './island-site-sign';
 
 /** Every solid trunk, boulder and log uses the same coordinates as server collision. */
 export function buildIsland(art:WorldArt){
@@ -34,19 +36,11 @@ export function buildIsland(art:WorldArt){
  float radius = length(oceanPosition / vec2(54.0,44.0)) / coast;
  float wave = sin(dot(oceanPosition,vec2(1.8,.7)) + jungleTime * 1.4) * .5 + sin(dot(oceanPosition,vec2(-.6,1.3)) - jungleTime * 1.1) * .35 + sin(dot(oceanPosition,vec2(.3,.5)) + jungleTime * .7) * .15;
  float shallow = 1.0 - smoothstep(1.0,1.30,radius);
- float foam = (1.0 - smoothstep(.012,.065,abs(radius - 1.022 - sin(jungleTime + angle * 9.0)*.006))) * (.55 + .45 * wave);
+ float foam = (1.0 - smoothstep(.012,.065,abs(radius - 1.042 - sin(jungleTime + angle * 9.0)*.006))) * (.55 + .45 * wave);
  diffuseColor.rgb = mix(vec3(.035,.18,.24),vec3(.12,.49,.44),shallow) + wave * .006 + foam * vec3(.45,.52,.43);
  `);shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nfloat swell = sin(dot(oceanPosition,vec2(.68,.83)) + jungleTime * .9) * .007; normal.x += swell; normal.z += swell * .6; normal = normalize(normal);');};
  ocean.customProgramCacheKey=()=> 'jungle-ocean-v1';const sea=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),ocean);sea.rotation.x=-Math.PI/2;sea.position.y=ISLAND_WATER.level;root.add(sea);
- // One continuous stepped seabed: top quads and only their exposed inner risers.
- const bedPositions:number[]=[],bedUV:number[]=[];
- function bedQuad(points:number[][]){for(const i of [0,1,2,0,2,3]){const p=points[i];bedPositions.push(...p);bedUV.push(p[0]/5,p[2]/5);}}
- for(let i=0;i<ISLAND_SEABED.length;i++){
-  const b=ISLAND_SEABED[i],y=b.y+b.h/2,[a,c,d,e]=b.polygon!,previous=i<64?0:ISLAND_SEABED[i-64].y+ISLAND_SEABED[i-64].h/2;
-  bedQuad([[a[0],y,a[1]],[c[0],y,c[1]],[d[0],y,d[1]],[e[0],y,e[1]]]);
-  if(previous>y+.001)bedQuad([[a[0],previous,a[1]],[c[0],previous,c[1]],[c[0],y,c[1]],[a[0],y,a[1]]]);
- }
- const bedGeometry=new THREE.BufferGeometry();bedGeometry.setAttribute('position',new THREE.Float32BufferAttribute(bedPositions,3));bedGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(bedUV,2));bedGeometry.computeVertexNormals();const bed=new THREE.Mesh(bedGeometry,art.material('#9aa88d',{map:grain,normalMap:art.stone.normalMap,normalScale:new THREE.Vector2(.14,.14),roughness:1,side:THREE.DoubleSide}));bed.receiveShadow=true;bed.name='Island seabed';root.add(bed);
+ const bed=new THREE.Mesh(islandSeabedGeometry(),art.material('#ffffff',{vertexColors:true,map:grain,normalMap:art.stone.normalMap,normalScale:new THREE.Vector2(.16,.16),roughness:1,side:THREE.DoubleSide}));bed.receiveShadow=true;bed.name='Island seabed';root.add(bed);
  function mesh(geometry:THREE.BufferGeometry,material:THREE.Material,parent:THREE.Object3D=root,shadow=true){const object=new THREE.Mesh(geometry,material);object.castShadow=shadow;object.receiveShadow=true;parent.add(object);return object;}
  function branch(parent:THREE.Object3D,a:THREE.Vector3,b:THREE.Vector3,r0:number,r1:number,material=bark){const geometry=new THREE.CylinderGeometry(r1,r0,a.distanceTo(b),8);geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize()));geometry.translate(...a.clone().add(b).multiplyScalar(.5).toArray());return mesh(geometry,material,parent);}
  function blade(length:number,width:number,bend:number,color:THREE.Color,material:THREE.Material,parent:THREE.Object3D,angle:number,tilt:number){
@@ -84,9 +78,7 @@ export function buildIsland(art:WorldArt){
  // Small shore stones and driftwood break up the beach without blocking traversal.
  for(let i=0;i<90;i++){const a=random()*Math.PI*2,r=.86+random()*.11,x=Math.cos(a)*ISLAND_SIZE.x*islandCoast(a)*r,z=Math.sin(a)*ISLAND_SIZE.z*islandCoast(a)*r;if(islandPathDistance({x,z})<2||JUNGLE_ISLAND.pickups.some(p=>Math.hypot(p.x-x,p.z-z)<2))continue;const stone=mesh(new THREE.IcosahedronGeometry(.1+random()*.22,0),rock,root,false);stone.position.set(x,.07,z);stone.scale.set(1.3,.6,1);stone.rotation.set(random(),random()*Math.PI,random());}
  for(const site of JUNGLE_ISLAND.bombSites!){const ring=mesh(new THREE.RingGeometry(site.marker.size*.46,site.marker.size*.48,48),art.material('#d6b77d',{roughness:1}),root,false);ring.rotation.x=-Math.PI/2;ring.position.set(site.x,.012,site.z);
-  art.sign(root,site.id,site.x+(site.id==='A'?4:-4),1.3,site.z+(site.id==='A'?4:-4),site.id==='A'?-Math.PI/2:Math.PI/2,'#435638',1.2);
-  // A sign is mounted to a wooden post rather than floating in the clearing.
-  branch(root,new THREE.Vector3(site.x+(site.id==='A'?4:-4),0,site.z+(site.id==='A'?4:-4)),new THREE.Vector3(site.x+(site.id==='A'?4:-4),1.65,site.z+(site.id==='A'?4:-4)),.055,.055);
+  root.add(islandSiteSign(art,site));
  }
  root.userData.islandStats={trees:ISLAND_TREES.length,plants:ISLAND_PLANTS.length,rocks:ISLAND_ROCKS.length};return root;
 }
