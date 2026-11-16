@@ -1,3 +1,5 @@
+import type {Water} from './water';
+export {WATER_RULES,inWater,fullySubmerged,type Water} from './water';
 import type {AvatarId} from './avatars';
 import {validAvatar} from './avatars';
 export {AVATARS,validAvatar,type AvatarId} from './avatars';
@@ -6,7 +8,7 @@ import {DEPOT} from './depot';
 import {JUNGLE_ISLAND} from './island';
 import {NIGHT_MARKET} from './night-market';
 export {NIGHT_MARKET,MARKET_SHOPS,MARKET_STRINGS} from './night-market';
-export {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_COAST,ISLAND_SIZE,ISLAND_PATHS,islandRadius,islandCoast,islandPathDistance} from './island';
+export {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_SEABED,ISLAND_WATER,ISLAND_COAST,ISLAND_SIZE,ISLAND_PATHS,islandRadius,islandCoast,islandPathDistance} from './island';
 import {climbLadder,type Ladder} from './ladders';
 export {nearbyLadder,type Ladder} from './ladders';
 export {DEPOT,DEPOT_CATWALK} from './depot';
@@ -64,7 +66,7 @@ export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksm
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
 export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'|'earth'|'sand'|'wood'|'water'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
 export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; }
-export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];}
+export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];water?:Water;}
 export const MAPS:Record<MapId,MapDefinition>={
   dunes:DUST2,
   relay:DEPOT,
@@ -85,7 +87,7 @@ export type ImpactSurface='stone'|'wood'|'metal'|'sand'|'asphalt';
 export interface ImpactMark {id:number;at:number;weapon:Weapon|'knife';position:Vec3;normal:Vec3;surface:ImpactSurface;ray:{origin:Vec3;direction:Vec3};expiresAt:number;}
 export interface Snapshot {teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
 export type HitZone = 'head'|'body';
-export interface CombatEvent {type:'dogDeploy'|'dogBite'|'dogDeath'|'flower'|'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex'|'dog';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
+export interface CombatEvent {type:'dogDeploy'|'dogBite'|'dogDeath'|'flower'|'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex'|'dog'|'water';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
 export function validInput(value:unknown):value is Input {
   if(!value||typeof value!=='object')return false;const i=value as Input;
   return (i.scope===undefined||i.scope===0||i.scope===1||i.scope===2)&&(i.spawnId===undefined||Number.isSafeInteger(i.spawnId)&&i.spawnId>0)&&Number.isSafeInteger(i.seq)&&i.seq>=0&&i.seq<2**31&&Number.isFinite(i.forward)&&Math.abs(i.forward)<=1&&Number.isFinite(i.strafe)&&Math.abs(i.strafe)<=1&&Number.isFinite(i.yaw)&&Math.abs(i.yaw)<=Math.PI*2&&Number.isFinite(i.pitch)&&Math.abs(i.pitch)<=1.5&&
@@ -116,7 +118,7 @@ export function solidTop(b:Solid,p:{x:number;z:number}){
 }
 export function intersects(p:Vec3,b:Solid,height=HEIGHT,radius=RADIUS){return footprint(p,b,radius)&&p.y+height>b.y-b.h/2+.0001&&p.y<solidTop(b,p)-.0001;}
 export function groundAt(p:{x:number;z:number},solids:Solid[]=SOLIDS,ceiling=Infinity){
-  let y=0;for(const b of solids)if(b.kind==='floor'&&footprint(p,b,.001)){const h=solidTop(b,p);if(h<=ceiling)y=Math.max(y,h);}return y;
+  let y=-Infinity;for(const b of solids)if(b.kind==='floor'&&footprint(p,b,.001)){const h=solidTop(b,p);if(h<=ceiling)y=Math.max(y,h);}return y===-Infinity?0:y;
 }
 export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Ladder[]=[]):Motion {
   const climbing=climbLadder(p,i,solids,ladders);if(climbing)return climbing;
@@ -138,7 +140,7 @@ export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Lad
   if(i.jump&&out.grounded&&!out.crouched){out.vy=9.4;out.grounded=false;}
   const oldY=out.y;out.vy-=24*DT;const dy=out.vy*DT;out.y+=dy;out.grounded=false;
   // Resolve all intersecting surfaces together, independent of declaration order.
-  let landing=0,ceiling=Infinity;
+  let landing=groundAt(out,solids,oldY+.001),ceiling=Infinity;
   for(const b of solids)if(footprint(out,b)){
     const top=solidTop(b,out),bottom=b.y-b.h/2;
     if(dy<=0&&top<=oldY+.001&&top>=out.y-.001)landing=Math.max(landing,top);
@@ -150,7 +152,7 @@ export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Lad
   // A centre-only floor lookup could pull feet back into a landing/ledge that
   // still overlaps the player's body, causing repeated step-up/snap-down jitter.
   if(p.grounded&&!i.jump&&out.vy<=0){
-    let floor=0;for(const b of solids)if(footprint(out,b)){const top=solidTop(b,out);if(top<=oldY+.001)floor=Math.max(floor,top);}
+    let floor=groundAt(out,solids,oldY+.001);for(const b of solids)if(footprint(out,b)){const top=solidTop(b,out);if(top<=oldY+.001)floor=Math.max(floor,top);}
     if(out.y-floor>=0&&out.y-floor<.36){out.y=floor;out.vy=0;out.grounded=true;}
   }
   return out;
@@ -190,13 +192,18 @@ export function raySolid(origin:Vec3,dir:Vec3,b:Solid):number|null {
   for(const t of candidates)if(t>=0&&t<=150){const q={x:origin.x+dir.x*(t+1e-5),y:origin.y+dir.y*(t+1e-5),z:origin.z+dir.z*(t+1e-5)};if(footprint(q,b,.00001)&&q.y>=min.y-.0001&&q.y<=solidTop(b,q)+.0001)return t;}
   return null;
 }
-export function wallDistance(origin:Vec3,dir:Vec3,solids:Solid[]=SOLIDS){let nearest=150;for(const b of solids){const t=raySolid(origin,dir,b);if(t!==null)nearest=Math.min(nearest,t);}if(dir.y<0)nearest=Math.min(nearest,-origin.y/dir.y);return nearest;}
+/** The fallback ground is only for unmodelled ground; it never floats above a real seabed. */
+function baseGroundHit(origin:Vec3,dir:Vec3,solids:Solid[]){
+ if(dir.y>=0||origin.y<0)return null;const t=-origin.y/dir.y,p={x:origin.x+dir.x*t,z:origin.z+dir.z*t};
+ return solids.some(b=>b.kind==='floor'&&solidTop(b,p)<=.001&&footprint(p,b,.001))?null:t;
+}
+export function wallDistance(origin:Vec3,dir:Vec3,solids:Solid[]=SOLIDS){let nearest=150;for(const b of solids){const t=raySolid(origin,dir,b);if(t!==null)nearest=Math.min(nearest,t);}const base=baseGroundHit(origin,dir,solids);if(base!==null)nearest=Math.min(nearest,base);return nearest;}
 /** Authoritative world contact for impact marks, including doors, ceilings,
  * ramps, vehicle cover and the base ground plane. Air misses have no mark. */
 export function impactTarget(origin:Vec3,dir:Vec3,solids:Solid[],range=150):Omit<ImpactMark,'id'|'at'|'weapon'|'expiresAt'>|undefined{
  let distance=range,solid:Solid|undefined,ground=false;
  for(const b of solids){const t=raySolid(origin,dir,b);if(t!==null&&t>1e-5&&t<=distance){distance=t;solid=b;}}
- if(dir.y<0){const t=-origin.y/dir.y;if(t>1e-5&&t<distance-1e-5){distance=t;solid=undefined;ground=true;}}
+ const fallback=baseGroundHit(origin,dir,solids);if(fallback!==null&&fallback>1e-5&&fallback<distance-1e-5){distance=fallback;solid=undefined;ground=true;}
  if(!solid&&!ground)return;
  const position={x:origin.x+dir.x*distance,y:origin.y+dir.y*distance,z:origin.z+dir.z*distance},normals:Vec3[]=[];
  if(ground&&solids.some(s=>s.style==='water'&&footprint(position,s,0)))return;

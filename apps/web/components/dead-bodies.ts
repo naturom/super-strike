@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {footprint,solidTop,wallDistance,type Player,type Solid} from '@sirocco/shared';
+import {groundAt,footprint,solidTop,wallDistance,type Player,type Solid} from '@sirocco/shared';
 import {poseAvatarBody} from './avatar-body-pose';
 import {poseWonderWomanSkirt} from './wonder-woman-skirt';
 import {animateHands} from './held-equipment';
@@ -27,7 +27,7 @@ export class DeadBodies {
    for(let i=0;i<8;i++){const candidate=away.clone().applyAxisAngle(new THREE.Vector3(0,1,0),i*Math.PI/4),clearance=wallDistance({x:p.x,y:p.y+.35,z:p.z},candidate,solids),score=Math.min(clearance,2.1)+candidate.dot(away)*.25;if(score>best){best=score;direction=candidate;}}
    // Stay on the actual floor/platform beneath the player's feet. Airborne
    // deaths continue falling under gravity instead of freezing in the sky.
-   let floor=0;for(const solid of solids)if(footprint(p,solid,0)){const top=solidTop(solid,p);if(top<=p.y+.08)floor=Math.max(floor,top);}
+   let floor=groundAt(p,solids,p.y+.08);for(const solid of solids)if(footprint(p,solid,0)){const top=solidTop(solid,p);if(top<=p.y+.08)floor=Math.max(floor,top);}
    state={at:p.death.at,direction,floor,settled:false,center:new THREE.Vector3()};this.states.set(p.id,state);
   }
   if(state.settled)return state;

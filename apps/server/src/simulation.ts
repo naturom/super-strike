@@ -4,7 +4,7 @@ import {flowerPickupIds} from './flower-guns';
 import {TrexSimulation} from './trex-simulation';
 import {DEFAULT_TEAM_AVATARS,validTeamAvatars,type TeamAvatars,GRENADE_THROW,GRENADE_BLAST,grenadeBlastDamage,freshAmmo,isSidearm} from '@sirocco/shared';
 import {randomUUID} from 'node:crypto';
-import {DOG_RULES,rayDog,type Dog,DT,NEXT_GAME_COUNTDOWN_MS,BOMB_RESULT_DELAY_MS,TREX_RULES,rayTrex,type Trex,RESPAWN_MS,IMPACT_RULES,impactTarget,type ImpactMark,RADIUS,fallDamage,TEAMS,sprayTarget,type Spray,BOMB_RULES,plantSite,canReachBomb,footprint,solidTop,intersects,ROUND_MS,WIN_SCORE,MAPS,DEFAULT_MAP,WEAPONS,KNIFE,isGun,direction,move,neutralInput,rayBox,rayPlayer,type HitZone,wallDistance,heightOf,eyeOf,nearestPickup,type Input,type Player,type Snapshot,type CombatEvent,type Solid,type Team,type MapId,type Pickup,type Grenade,type Equipment,type Vec3,type GameMode,type BombState} from '@sirocco/shared';
+import {DOG_RULES,rayDog,type Dog,DT,NEXT_GAME_COUNTDOWN_MS,BOMB_RESULT_DELAY_MS,TREX_RULES,rayTrex,type Trex,RESPAWN_MS,IMPACT_RULES,impactTarget,type ImpactMark,RADIUS,fallDamage,groundAt,fullySubmerged,WATER_RULES,TEAMS,sprayTarget,type Spray,BOMB_RULES,plantSite,canReachBomb,footprint,solidTop,intersects,ROUND_MS,WIN_SCORE,MAPS,DEFAULT_MAP,WEAPONS,KNIFE,isGun,direction,move,neutralInput,rayBox,rayPlayer,type HitZone,wallDistance,heightOf,eyeOf,nearestPickup,type Input,type Player,type Snapshot,type CombatEvent,type Solid,type Team,type MapId,type Pickup,type Grenade,type Equipment,type Vec3,type GameMode,type BombState} from '@sirocco/shared';
 export class Simulation {
   players=new Map<string,Player>();
   queues=new Map<string,Input[]>();
@@ -12,6 +12,7 @@ export class Simulation {
   private nextShot=new Map<string,number>();
   private trigger=new Map<string,boolean>();
   private actions=new Map<string,{interact:boolean;throwAt:number}>();
+  private waterExposure=new Map<string,{since:number;nextDamage:number}>();
   private falls=new Map<string,{height:number}>();
   private flowerRacks=new Set<string>();
   private flowerInventory=new Map<string,Set<import('@sirocco/shared').Weapon>>();
@@ -34,11 +35,11 @@ export class Simulation {
     const p:Player={id,name,team,avatar:this.teamAvatars[team],x:0,y:0,z:0,vy:0,grounded:true,crouched:false,yaw:team==='red'?0:Math.PI,pitch:0,hp:100,kills:0,deaths:0,weapon:'rifle',primary:'rifle',ammo:freshAmmo(),grenades:2,reloadUntil:0,respawnAt:0,protectedUntil:0,connected:true,ack:0,spawnId:0};
     this.players.set(id,p);this.queues.set(id,[]);this.spawn(p);if(this.mode==='defusal'&&this.roundLive){p.hp=0;p.respawnAt=0;}return p;
   }
-  remove(id:string){this.companions.removeOwner(id);this.flowerInventory.delete(id);this.falls.delete(id);this.dropBomb(id);this.bombIntents.delete(id);this.players.delete(id);this.queues.delete(id);this.lastSeq.delete(id);this.nextShot.delete(id);this.trigger.delete(id);this.actions.delete(id);}
+  remove(id:string){this.companions.removeOwner(id);this.flowerInventory.delete(id);this.falls.delete(id);this.waterExposure.delete(id);this.dropBomb(id);this.bombIntents.delete(id);this.players.delete(id);this.queues.delete(id);this.lastSeq.delete(id);this.nextShot.delete(id);this.trigger.delete(id);this.actions.delete(id);}
   input(id:string,i:Input){const prev=this.lastSeq.get(id)??0;if(i.seq<=prev||i.seq-prev>120)return;this.lastSeq.set(id,i.seq);const p=this.players.get(id);if(!p)return;if(p.hp<=0||this.phase!=='playing'||i.spawnId!==undefined&&i.spawnId!==p.spawnId){p.ack=Math.max(p.ack,i.seq);return;}const q=this.queues.get(id);if(!q)return;if(q.length>=8)q.shift();q.push(i);}
   spawn(p:Player){
     p.avatar=this.teamAvatars[p.team];p.spawnId++;p.ack=Math.max(p.ack,this.lastSeq.get(p.id)??0);
-    this.falls.delete(p.id);this.flowerInventory.delete(p.id);p.untestedWeapons=undefined;p.flowerWeapons=undefined;
+    this.falls.delete(p.id);this.waterExposure.delete(p.id);this.flowerInventory.delete(p.id);p.untestedWeapons=undefined;p.flowerWeapons=undefined;
     const others=[...this.players.values()].filter(o=>o.id!==p.id&&o.hp>0);
     const spots=MAPS[this.mapId].spawns[p.team].map(s=>({s,safety:Math.min(...others.map(o=>Math.hypot(o.x-s.x,o.z-s.z)),100)}));spots.sort((a,b)=>b.safety-a.safety);
     Object.assign(p,spots[0].s,{hp:100,vy:0,grounded:true,crouched:false,ammo:freshAmmo(),weapon:'rifle',primary:'rifle',secondary:'pistol',scope:undefined,grenades:2,grenadeThrow:undefined,reloadUntil:0,respawnAt:0,death:undefined,climbing:undefined,protectedUntil:this.time+1500,yaw:MAPS[this.mapId].spawnYaw?.[p.team]??(p.team==='red'?0:Math.PI),pitch:0});
@@ -66,6 +67,8 @@ export class Simulation {
       if(p.climbing)this.falls.delete(p.id);
       else if(p.grounded){this.falls.delete(p.id);const amount=fallDamage(peak-p.y);if(amount)this.damage(p,amount,p,p.weapon,p,undefined,'fall');}
       else this.falls.set(p.id,{height:peak});
+      if(p.hp<=0)continue;
+      this.stepWater(p);
       if(p.hp<=0)continue;
       if(!i||!p.connected)continue;
       this.bombIntents.set(p.id,{input:i,at:this.time});
@@ -109,6 +112,12 @@ export class Simulation {
     if(this.phase==='playing')this.stepGrenades();
     if(this.phase==='playing'&&this.bombs.length)this.stepBomb();
   }
+  private stepWater(p:Player){
+    if(!fullySubmerged(p,MAPS[this.mapId].water)){this.waterExposure.delete(p.id);return;}
+    let exposure=this.waterExposure.get(p.id);
+    if(!exposure){exposure={since:this.time,nextDamage:this.time+WATER_RULES.breathMs};this.waterExposure.set(p.id,exposure);}
+    if(this.time>exposure.nextDamage+.001){exposure.nextDamage+=WATER_RULES.damageIntervalMs;this.damage(p,WATER_RULES.damage,p,p.weapon,p,undefined,'water');}
+  }
   private eye(p:Player):Vec3{return{x:p.x,y:p.y+eyeOf(p),z:p.z};}
   private emit(type:CombatEvent['type'],p:{id:string;team:Team},weapon:Equipment,from:Vec3,to:Vec3,extra:Partial<CombatEvent>={}){this.events.push({type,id:++this.eventId,shooter:p.id,team:p.team,weapon,from:{...from},to:{...to},...extra});}
   pickup(p:Player){
@@ -150,11 +159,11 @@ export class Simulation {
     this.emit(p.weapon==='knife'?'melee':'shot',p,p.weapon,from,to,{inputSeq:p.ack,spawnId:p.spawnId,target:companion?.id??creature?.id??hit?.id,hitZone:companion||creature||hit?hitZone:undefined,impact});if(companion)this.damageDog(companion,w.damage*(hitZone==='head'?2:1),p,p.weapon,from,hitZone);else if(creature)this.damageTrex(creature,w.damage*(hitZone==='head'?2:1),p,p.weapon,from,hitZone);else if(hit)this.damage(hit,hitZone==='head'?hit.hp:w.damage,p,p.weapon,from,hitZone);
   }
   damage(victim:Player,amount:number,attacker:{id:string;team:Team},weapon:Equipment,from:Vec3,hitZone?:HitZone,cause?:CombatEvent['cause']){
-    if(this.phase!=='playing'||victim.hp<=0||cause==='dog'&&victim.team===attacker.team||victim.protectedUntil>this.time&&cause!=='fall'||victim.team===attacker.team&&victim.id!==attacker.id&&cause!=='trex')return;
+    if(this.phase!=='playing'||victim.hp<=0||cause==='dog'&&victim.team===attacker.team||victim.protectedUntil>this.time&&cause!=='fall'&&cause!=='water'||victim.team===attacker.team&&victim.id!==attacker.id&&cause!=='trex')return;
     const dealt=Math.min(victim.hp,Math.max(0,Math.round(amount)));if(!dealt)return;victim.hp-=dealt;
     this.emit('damage',attacker,weapon,from,this.eye(victim),{target:victim.id,damage:dealt,hp:victim.hp,hitZone,cause});
     if(!victim.hp){
-      this.dropBomb(victim.id);victim.deaths++;victim.respawnAt=this.time+RESPAWN_MS;victim.death={at:this.time,from:{...from},vy:victim.vy,crouched:victim.crouched};victim.reloadUntil=0;victim.scope=undefined;victim.grenadeThrow=undefined;
+      this.waterExposure.delete(victim.id);this.dropBomb(victim.id);victim.deaths++;victim.respawnAt=this.time+RESPAWN_MS;victim.death={at:this.time,from:{...from},vy:victim.vy,crouched:victim.crouched};victim.reloadUntil=0;victim.scope=undefined;victim.grenadeThrow=undefined;
       const killer=this.players.get(attacker.id);if(victim.team!==attacker.team){if(killer)killer.kills++;if(this.mode==='deathmatch')this.scores[attacker.team]++;}
       this.emit('kill',attacker,weapon,from,victim,{target:victim.id,name:cause==='trex'?'T-REX':killer?.name??'Departed player',victim:victim.name,victimTeam:victim.team,hitZone,cause});
       if(this.mode==='deathmatch'&&this.scores[attacker.team]>=WIN_SCORE)this.finish();
@@ -194,7 +203,7 @@ export class Simulation {
           const blocked=()=>this.solids.some(b=>b.style!=='water'&&intersects({x:g.x,y:g.y-.12,z:g.z},b,.24,.12));
           if(blocked()){let lo=0,hi=1;for(let n=0;n<9;n++){const t=(lo+hi)/2;g[axis]=before+delta*t;if(blocked())hi=t;else lo=t;}g[axis]=before+delta*lo;g[v]*=-.48;}
         }
-        if(g.y<.12){g.y=.12;g.vy=Math.abs(g.vy)*.42;g.vx*=.8;g.vz*=.8;if(g.vy<.4)g.vy=0;}
+        const support=groundAt(g,this.solids,g.y),floor=(support===0&&g.y<0?MAPS[this.mapId].water?.bed??support:support)+.12;if(g.y<floor){g.y=floor;g.vy=Math.abs(g.vy)*.42;g.vx*=.8;g.vz*=.8;if(g.vy<.4)g.vy=0;}
       }
       if(this.time>=g.explodeAt){
         const source={id:g.owner,team:g.team};this.emit('explosion',source,'grenade',g,g);
@@ -217,7 +226,7 @@ export class Simulation {
   }
   private dropBomb(id:string){
     const bomb=this.bombs.find(b=>b.status==='carried'&&b.carrierId===id);if(!bomb)return;
-    const p=this.players.get(id);if(p){let y=0;for(const b of this.solids)if(footprint(p,b,0)&&solidTop(b,p)<=p.y+.01)y=Math.max(y,solidTop(b,p));Object.assign(bomb,{x:p.x,y,z:p.z});if(p.weapon==='bomb')p.weapon=p.primary;}
+    const p=this.players.get(id);if(p){let y=groundAt(p,this.solids,p.y+.01);for(const b of this.solids)if(footprint(p,b,0)&&solidTop(b,p)<=p.y+.01)y=Math.max(y,solidTop(b,p));Object.assign(bomb,{x:p.x,y,z:p.z});if(p.weapon==='bomb')p.weapon=p.primary;}
     bomb.status='dropped';bomb.carrierId=null;bomb.action=null;
   }
   private finishBomb(winner:Team|'draw',outcome:string){if(this.phase==='finished')return;this.phase='finished';this.scheduleNextGame();this.winner=winner;this.outcome=outcome;if(winner!=='draw')this.scores[winner]=1;for(const bomb of this.bombs)bomb.action=null;}

@@ -1,4 +1,4 @@
-import {dustPoint,SCOUT_TOWER,type MapId} from '@sirocco/shared';
+import {ISLAND_COAST,dustPoint,SCOUT_TOWER,type MapId} from '@sirocco/shared';
 export const MAP_TOUR=[
   {name:'MID · SCOUT TOWER',description:'Enter from Catwalk and climb the enclosed ladder to a lookout above the rooftops.',eye:dustPoint(563,563,SCOUT_TOWER.deck+1.6),target:dustPoint(480,300,7)},
   {name:'A · CT COURTYARD',description:'Team B defends Site A just beside its starting area, with approaches from Mid and CT.',eye:dustPoint(590,264,2.1),target:dustPoint(548,248,.35)},
@@ -25,6 +25,8 @@ export const ISLAND_TOUR=[
  {name:'PALMS · NORTH TRAIL',description:'A quieter approach through palms, tall trees and fallen timber.',eye:{x:-24,y:1.7,z:-19},target:{x:2,y:3,z:-27}},
  {name:'WEST CAMP · DEFEND B',description:'Team A starts in a sheltered clearing beside Site B and its weapon supplies.',eye:{x:-40,y:1.7,z:18},target:{x:-25,y:2,z:13}},
  {name:'EAST CAMP · DEFEND A',description:'Team B protects Site A. Branch into the central clearing or circle through the coast.',eye:{x:40,y:1.7,z:-18},target:{x:24,y:2,z:-10}},
+ {name:'COAST · WALKABLE SHALLOWS',description:'Wade off the beach and follow the stepped seabed back to dry land. Only full submersion starts the breath timer.',eye:{x:ISLAND_COAST[0][0]*.97,y:1.7,z:0},target:{x:ISLAND_COAST[0][0]*1.3,y:-.6,z:-4}},
+ {name:'REEF · UNDERWATER',description:'A submerged view of the sandy seabed. Watch for a reef shark passing occasionally through the blue water.',eye:{x:ISLAND_COAST[0][0]*1.24,y:-1.12,z:0},target:{x:ISLAND_COAST[0][0]*1.28,y:-1.55,z:-12}},
 ];
 export const MARKET_TOUR=[
  {name:'NIGHT MARKET · OVERVIEW',description:'Lantern streets, colourful shophouses and a covered food pavilion, with two back-alley flanks.',eye:{x:35,y:39,z:40},target:{x:0,y:0,z:0}},

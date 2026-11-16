@@ -16,9 +16,19 @@ function prism(label:string,polygon:[number,number][],height:number,style:Solid[
  const xs=polygon.map(p=>p[0]),zs=polygon.map(p=>p[1]),minX=Math.min(...xs),maxX=Math.max(...xs),minZ=Math.min(...zs),maxZ=Math.max(...zs);
  const solid:Solid={label,polygon,x:(minX+maxX)/2,z:(minZ+maxZ)/2,w:maxX-minX,d:maxZ-minZ,y:base+height/2,h:height,kind,style};solids.push(solid);return solid;
 }
-prism('Island ground',ISLAND_COAST,.4,'earth',-.4,'floor');
-// Only player movement stops at deep water. Shots and paint never hit an invisible wall.
-for(let i=0;i<ISLAND_COAST.length;i++){const a=ISLAND_COAST[i],b=ISLAND_COAST[(i+1)%ISLAND_COAST.length];prism('Deep water',[a,b,[b[0]*1.24,b[1]*1.24],[a[0]*1.24,a[1]*1.24]],12,'water',-1);}
+export const ISLAND_WATER={level:-.24,bed:-2.72,edge:1.44} as const;
+prism('Island ground',ISLAND_COAST,3.5,'earth',-3.5,'floor');
+// Eight small steps can be walked in either direction without a jump or hidden hole.
+export const ISLAND_SEABED:Solid[]=[];
+for(let ring=0;ring<9;ring++){
+ const inner=1+ring*.03,outer=ring===8?ISLAND_WATER.edge:inner+.03,top=-Math.min(8,ring+1)*.34;
+ for(let i=0;i<ISLAND_COAST.length;i++){
+  const a=ISLAND_COAST[i],b=ISLAND_COAST[(i+1)%ISLAND_COAST.length],outline:[number,number][]=[[a[0]*inner,a[1]*inner],[b[0]*inner,b[1]*inner],[b[0]*outer,b[1]*outer],[a[0]*outer,a[1]*outer]];
+  ISLAND_SEABED.push(prism('Sandy seabed',outline,top+3.5,'sand',-3.5,'floor'));
+ }
+}
+// The outer limit sits well beyond the walkable shallows and deep seabed.
+for(let i=0;i<ISLAND_COAST.length;i++){const a=ISLAND_COAST[i],b=ISLAND_COAST[(i+1)%ISLAND_COAST.length],r=ISLAND_WATER.edge;prism('Ocean limit',[[a[0]*r,a[1]*r],[b[0]*r,b[1]*r],[b[0]*1.65,b[1]*1.65],[a[0]*1.65,a[1]*1.65]],15,'water',-3.5);}
 export interface IslandTree extends Vec3 {radius:number;height:number;kind:'canopy'|'palm'|'sapling';angle:number;}
 export interface IslandPlant {x:number;z:number;size:number;angle:number;kind:'bush'|'fern'|'grass';}
 export const ISLAND_TREES:IslandTree[]=[],ISLAND_PLANTS:IslandPlant[]=[];
@@ -52,7 +62,7 @@ for(let attempt=0;attempt<6000&&ISLAND_PLANTS.length<460;attempt++){
 export const JUNGLE_ISLAND:MapDefinition={
  id:'island',name:'Jungle Island',subtitle:'Coast · Jungle · Rock clearing',
  description:'A mid-sized tropical island. Cross dense jungle, flank along sandy coves, or fight around the central rock clearing.',
- bounds:{minX:-58,maxX:58,minZ:-48,maxZ:48},solids,pickups,spawnYaw:{red:-Math.PI/2,blue:Math.PI/2},
+ water:ISLAND_WATER,bounds:{minX:-84,maxX:84,minZ:-70,maxZ:70},solids,pickups,spawnYaw:{red:-Math.PI/2,blue:Math.PI/2},
  spawns:{red:[{x:-39,y:0,z:18},{x:-36,y:0,z:15},{x:-36,y:0,z:21},{x:-33,y:0,z:18}],blue:[{x:39,y:0,z:-18},{x:36,y:0,z:-15},{x:36,y:0,z:-21},{x:33,y:0,z:-18}]},
  bombSites:[{id:'A',x:35,z:-18,w:6,d:6,minY:0,maxY:.15,marker:{x:35,y:0,z:-18,size:6}},{id:'B',x:-35,z:18,w:6,d:6,minY:0,maxY:.15,marker:{x:-35,y:0,z:18,size:6}}],
  landmarks:[{name:'WEST CAMP',x:-36,z:18},{name:'EAST CAMP',x:36,z:-18},{name:'ROCK CLEARING',x:0,z:8},{name:'NORTH TRAIL',x:0,z:-27},{name:'SOUTH COVE',x:0,z:29},{name:'PALM GROVE',x:-28,z:-15},{name:'A',x:35,z:-18},{name:'B',x:-35,z:18}],

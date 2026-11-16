@@ -1,6 +1,6 @@
 import {trexSignal,trexDuration,type TrexSound} from './trex-audio';
-import {footprint,solidTop,RADIUS,type Motion,type Solid,type Vec3,type Weapon} from '@sirocco/shared';
-export type Surface='asphalt'|'stone'|'grit'|'metal'|'wood';
+import {inWater,footprint,solidTop,RADIUS,type Water,type Motion,type Solid,type Vec3,type Weapon} from '@sirocco/shared';
+export type Surface='asphalt'|'stone'|'grit'|'metal'|'wood'|'water';
 export type SynthSoundKind=Weapon|TrexSound;
 export type SoundKind=SynthSoundKind|'spray'|'knife'|'knife-hit'|'knife-wall'|`reload-${Weapon}`|`step-${Surface}`;
 export const isRecordedKind=(kind:SoundKind):kind is Exclude<SoundKind,SynthSoundKind>=>kind==='spray'||kind.startsWith('step-')||kind.startsWith('reload-')||kind.startsWith('knife');
@@ -37,8 +37,9 @@ export function combatSignal(rate:number,kind:SynthSoundKind,variant=0){
  const edge=Math.ceil(rate*.001);for(let i=0;i<edge;i++){out[i]*=i/edge;out[out.length-1-i]*=i/edge;}
  return out;
 }
-export function surfaceAt(p:Vec3&{climbing?:string},solids:Solid[]):Surface{
+export function surfaceAt(p:Vec3&{climbing?:string},solids:Solid[],water?:Water):Surface{
  if(p.climbing)return 'metal';
+ if(inWater(p,water))return 'water';
  // Prefer the surface beneath the foot centre. Radius fallback is needed
  // when the player is supported by the front edge of a stair or crate.
  let selected:Solid|undefined;

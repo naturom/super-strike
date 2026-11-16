@@ -1,4 +1,4 @@
-import {groundAt,intersects,footprint,solidTop,wallDistance,TREX_RULES,type Solid,type Vec3,type MapDefinition} from '@sirocco/shared';
+import {inWater,groundAt,intersects,footprint,solidTop,wallDistance,TREX_RULES,type Solid,type Vec3,type MapDefinition} from '@sirocco/shared';
 type Node=Vec3&{key:string;ix:number;iz:number};
 class Queue {
  private items:{node:Node;score:number}[]=[];
@@ -10,10 +10,10 @@ class Queue {
 export class TrexNavigation {
  private cache=new Map<string,Node|null>();private edges=new Map<string,Node[]>();readonly cell:number;private radius:number;private height:number;private maxStep:number;
  readonly bounds:{minX:number;maxX:number;minZ:number;maxZ:number};
- constructor(readonly solids:Solid[],map:MapDefinition,profile:{radius?:number;height?:number;cell?:number;maxStep?:number}={}){this.cell=profile.cell??1.1;this.radius=profile.radius??TREX_RULES.radius;this.height=profile.height??TREX_RULES.height;this.maxStep=profile.maxStep??.65;this.bounds=map.bounds??{minX:-29,maxX:29,minZ:-23,maxZ:23};}
+ constructor(readonly solids:Solid[],readonly map:MapDefinition,profile:{radius?:number;height?:number;cell?:number;maxStep?:number}={}){this.cell=profile.cell??1.1;this.radius=profile.radius??TREX_RULES.radius;this.height=profile.height??TREX_RULES.height;this.maxStep=profile.maxStep??.65;this.bounds=map.bounds??{minX:-29,maxX:29,minZ:-23,maxZ:23};}
  point(x:number,z:number):Vec3|undefined{
   const b=this.bounds;if(x<b.minX+this.radius||x>b.maxX-this.radius||z<b.minZ+this.radius||z>b.maxZ-this.radius)return;
-  const p={x,y:groundAt({x,z},this.solids,5.5),z};if(this.solids.some(s=>intersects({...p,y:p.y+.012},s,this.height,this.radius)))return;return p;
+  const p={x,y:groundAt({x,z},this.solids,5.5),z};if(inWater(p,this.map.water)||this.solids.some(s=>intersects({...p,y:p.y+.012},s,this.height,this.radius)))return;return p;
  }
  outdoors(p:Vec3){return !this.solids.some(s=>footprint(p,s,.3)&&s.y-s.h/2>p.y+.05&&s.y-s.h/2<p.y+10&&solidTop(s,p)>p.y+.1);}
  private node(ix:number,iz:number){const key=`${ix},${iz}`;if(this.cache.has(key))return this.cache.get(key)!;const p=this.point(this.bounds.minX+ix*this.cell,this.bounds.minZ+iz*this.cell),node=p?{...p,key,ix,iz}:null;this.cache.set(key,node);return node;}

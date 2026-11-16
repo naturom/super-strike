@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_COAST,ISLAND_SIZE,islandCoast,islandPathDistance} from '@sirocco/shared';
+import {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_WATER,ISLAND_SEABED,ISLAND_COAST,ISLAND_SIZE,islandCoast,islandPathDistance} from '@sirocco/shared';
 import type {WorldArt} from './world';
 import {islandLog} from './island-log';
 
@@ -26,7 +26,7 @@ export function buildIsland(art:WorldArt){
  for(let ring=1;ring<rings;ring++)for(let i=0;i<segments;i++){const a=1+(ring-1)*segments+i,b=1+(ring-1)*segments+(i+1)%segments,c=a+segments,d=b+segments;indices.push(a,b,c,b,d,c);}
  surface.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));surface.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));surface.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));surface.setIndex(indices);surface.computeVertexNormals();const land=new THREE.Mesh(surface,earth);land.receiveShadow=true;root.add(land);
  // The ocean is a single opaque draw, with small waves and a shallow-water foam band.
- const ocean=art.material('#368c91',{roughness:.24,metalness:.24});
+ const ocean=art.material('#368c91',{roughness:.24,metalness:.24,side:THREE.DoubleSide});
  ocean.userData.noRaycast=true;
  ocean.onBeforeCompile=shader=>{shader.uniforms.jungleTime=time;shader.vertexShader='varying vec2 oceanPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\noceanPosition = position.xz;');shader.fragmentShader='varying vec2 oceanPosition;\nuniform float jungleTime;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
  float angle = atan(oceanPosition.y / 44.0, oceanPosition.x / 54.0);
@@ -37,7 +37,16 @@ export function buildIsland(art:WorldArt){
  float foam = (1.0 - smoothstep(.012,.065,abs(radius - 1.022 - sin(jungleTime + angle * 9.0)*.006))) * (.55 + .45 * wave);
  diffuseColor.rgb = mix(vec3(.035,.18,.24),vec3(.12,.49,.44),shallow) + wave * .006 + foam * vec3(.45,.52,.43);
  `);shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nfloat swell = sin(dot(oceanPosition,vec2(.68,.83)) + jungleTime * .9) * .007; normal.x += swell; normal.z += swell * .6; normal = normalize(normal);');};
- ocean.customProgramCacheKey=()=> 'jungle-ocean-v1';const sea=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),ocean);sea.rotation.x=-Math.PI/2;sea.position.y=-.24;root.add(sea);
+ ocean.customProgramCacheKey=()=> 'jungle-ocean-v1';const sea=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),ocean);sea.rotation.x=-Math.PI/2;sea.position.y=ISLAND_WATER.level;root.add(sea);
+ // One continuous stepped seabed: top quads and only their exposed inner risers.
+ const bedPositions:number[]=[],bedUV:number[]=[];
+ function bedQuad(points:number[][]){for(const i of [0,1,2,0,2,3]){const p=points[i];bedPositions.push(...p);bedUV.push(p[0]/5,p[2]/5);}}
+ for(let i=0;i<ISLAND_SEABED.length;i++){
+  const b=ISLAND_SEABED[i],y=b.y+b.h/2,[a,c,d,e]=b.polygon!,previous=i<64?0:ISLAND_SEABED[i-64].y+ISLAND_SEABED[i-64].h/2;
+  bedQuad([[a[0],y,a[1]],[c[0],y,c[1]],[d[0],y,d[1]],[e[0],y,e[1]]]);
+  if(previous>y+.001)bedQuad([[a[0],previous,a[1]],[c[0],previous,c[1]],[c[0],y,c[1]],[a[0],y,a[1]]]);
+ }
+ const bedGeometry=new THREE.BufferGeometry();bedGeometry.setAttribute('position',new THREE.Float32BufferAttribute(bedPositions,3));bedGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(bedUV,2));bedGeometry.computeVertexNormals();const bed=new THREE.Mesh(bedGeometry,art.material('#9aa88d',{map:grain,normalMap:art.stone.normalMap,normalScale:new THREE.Vector2(.14,.14),roughness:1,side:THREE.DoubleSide}));bed.receiveShadow=true;bed.name='Island seabed';root.add(bed);
  function mesh(geometry:THREE.BufferGeometry,material:THREE.Material,parent:THREE.Object3D=root,shadow=true){const object=new THREE.Mesh(geometry,material);object.castShadow=shadow;object.receiveShadow=true;parent.add(object);return object;}
  function branch(parent:THREE.Object3D,a:THREE.Vector3,b:THREE.Vector3,r0:number,r1:number,material=bark){const geometry=new THREE.CylinderGeometry(r1,r0,a.distanceTo(b),8);geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize()));geometry.translate(...a.clone().add(b).multiplyScalar(.5).toArray());return mesh(geometry,material,parent);}
  function blade(length:number,width:number,bend:number,color:THREE.Color,material:THREE.Material,parent:THREE.Object3D,angle:number,tilt:number){

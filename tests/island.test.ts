@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {Client,type Room} from '@colyseus/sdk';
-import {JUNGLE_ISLAND as island,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_PATHS,MAPS,validMap,intersects,groundAt,plantSite,move,neutralInput,wallDistance,impactTarget,type Motion,type Snapshot} from '@sirocco/shared';
+import {JUNGLE_ISLAND as island,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_PATHS,MAPS,validMap,intersects,groundAt,islandRadius,plantSite,move,neutralInput,wallDistance,impactTarget,type Motion,type Snapshot} from '@sirocco/shared';
 import {WorldArt,disposeGroup} from '../apps/web/components/world';
 import {surfaceAt} from '../apps/web/components/combat-audio';
 import {tourForMap} from '../apps/web/components/map-tour';
@@ -13,7 +13,7 @@ test('the island is selectable, mid-sized, densely planted, and its spawns, site
  assert.equal(MAPS.island,island);assert.equal(validMap('island'),true);assert.ok(island.bounds!.maxX-island.bounds!.minX>80);assert.ok(ISLAND_TREES.length>=150);assert.ok(ISLAND_PLANTS.length>=400);assert.ok(ISLAND_ROCKS.length>=20);assert.ok(new Set(ISLAND_TREES.map(t=>t.kind)).size===3);
  for(const p of [...island.spawns.red,...island.spawns.blue,...island.pickups]){assert.equal(island.solids.some(s=>intersects(p,s)),false,JSON.stringify(p));assert.equal(groundAt(p,island.solids,.4),0);}
  for(const site of island.bombSites!)for(let x=site.x-site.w/2;x<=site.x+site.w/2;x+=.5)for(let z=site.z-site.d/2;z<=site.z+site.d/2;z+=.5){const p={x,y:0,z};assert.equal(island.solids.some(s=>intersects(p,s)),false);assert.equal(plantSite(p,'island',site.id==='A'?'red':'blue')?.id,site.id);}
- assert.equal(surfaceAt({x:-36,y:0,z:18},island.solids),'grit');assert.equal(tourForMap('island').length,6);
+ assert.equal(surfaceAt({x:-36,y:0,z:18},island.solids),'grit');assert.equal(tourForMap('island').length,8);
 });
 test('all three authored routes stay open and both camps and supplies are connected',()=>{
  for(const path of ISLAND_PATHS)for(let n=1;n<path.length;n++){const a=path[n-1],b=path[n],count=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])*3);for(let i=0;i<=count;i++){const t=i/count,p={x:a[0]+(b[0]-a[0])*t,y:0,z:a[1]+(b[1]-a[1])*t};assert.equal(island.solids.some(s=>intersects(p,s)),false,`blocked route ${JSON.stringify(p)}`);}}
@@ -21,8 +21,8 @@ test('all three authored routes stay open and both camps and supplies are connec
  for(let i=0;i<queue.length;i++){const [x,z]=queue[i];for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const p={x:x+dx,y:0,z:z+dz},key=`${p.x},${p.z}`;if(seen.has(key)||p.x<b.minX||p.x>b.maxX||p.z<b.minZ||p.z>b.maxZ||island.solids.some(s=>intersects(p,s)))continue;seen.add(key);queue.push([p.x,p.z]);}}
  for(const p of [...island.spawns.red,...island.spawns.blue,...island.bombSites!,...island.pickups]){assert.ok([...seen].some(key=>{const [x,z]=key.split(',').map(Number);return Math.hypot(x-p.x,z-p.z)<1;}),`unreachable ${JSON.stringify(p)}`);}
 });
-test('deep water contains players without invisible bullet impacts, and trunks and rocks block shots',()=>{
- const shore=island.solids.filter(s=>s.style==='water'||s.kind==='floor');let p:Motion={x:0,y:0,z:0,vy:0,grounded:true};for(let i=0;i<850;i++)p=move(p,{...neutralInput(),forward:1},shore);assert.ok(p.z>-48);assert.equal(shore.some(s=>intersects(p,s)),false);
+test('the outer ocean limit contains players without invisible bullet impacts, and trunks and rocks block shots',()=>{
+ const shore=island.solids.filter(s=>s.style==='water'||s.kind==='floor');let p:Motion={x:0,y:0,z:0,vy:0,grounded:true};for(let i=0;i<850;i++)p=move(p,{...neutralInput(),forward:1},shore);assert.ok(islandRadius(p.x,p.z)<1.45);assert.ok(p.y< -2.5);assert.equal(shore.some(s=>intersects(p,s)),false);
  const boundary=island.solids.find(s=>s.style==='water'&&s.x>53)!,origin={x:boundary.x-4,y:8,z:boundary.z};assert.equal(wallDistance(origin,{x:1,y:0,z:0},island.solids),150);assert.equal(impactTarget(origin,{x:1,y:0,z:0},island.solids),undefined);
  assert.ok(wallDistance({x:0,y:1.6,z:10},{x:0,y:0,z:-1},island.solids)<12);
 });

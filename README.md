@@ -4,7 +4,7 @@ An original desktop browser multiplayer FPS, implemented with Next.js, TypeScrip
 
 ## Play
 
-Maps include Dust III, Depot and **Jungle Island**, a mid-sized tropical island with 168 varied trees, dense bushes and ferns, sandy coves, mossy rocks and fallen logs. Jungle Island supports both game modes, weapon pickups, minimap navigation and six scout viewpoints.
+Maps include Dust III, Depot and **Jungle Island**, a mid-sized tropical island with 168 varied trees, dense bushes and ferns, sandy coves, mossy rocks and fallen logs. Jungle Island supports both game modes, weapon pickups, minimap navigation and eight scout viewpoints. Its shallow seabed can be walked in both directions; water footsteps use recorded splashes. A 10-second breath timer counts only while the entire standing or crouched body is submerged, then drains 5 HP per second until the player surfaces. Surfacing resets the timer. Occasional ambient reef sharks pass through the deep-water area and are visible only underwater. Occasional ambient reef sharks pass by underwater.
 
 **Night Market** adds lantern-lit streets, eight colourful shophouses, a covered food pavilion, illuminated shop signs and connected back alleys. The map uses static light pools and three shadowless live lights, supports both game modes, and restores normal daylight when switching to another arena.
 

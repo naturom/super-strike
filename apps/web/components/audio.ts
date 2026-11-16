@@ -14,7 +14,7 @@ export class GameAudio {
   private combatBuffers=new Map<string,AudioBuffer>();private voices=new Set<AudioBufferSourceNode>();private reloads=new Map<string,AudioBufferSourceNode>();
   private recordings=new RecordedAudio<AudioBuffer>();private recordingLoad?:Promise<boolean>;private lastVariant=-1;
   private radioBuffers=new Map<RadioLine,AudioBuffer>();private radioLoad?:Promise<void>;private radioSources=new Set<AudioBufferSourceNode>();private pendingRadio:{line:RadioLine;expires:number}[]=[];
-  enabled=true;listener:Vec3={x:0,y:0,z:0};yaw=0;
+  underwater=false;enabled=true;listener:Vec3={x:0,y:0,z:0};yaw=0;
   unlock(){if(!this.context){const c=this.context=new AudioContext();this.master=c.createGain();this.master.gain.value=.48;const limiter=c.createDynamicsCompressor();limiter.threshold.value=-14;limiter.ratio.value=8;this.master.connect(limiter).connect(c.destination);this.noise=c.createBuffer(1,c.sampleRate*2,c.sampleRate);const d=this.noise.getChannelData(0);let last=0;for(let i=0;i<d.length;i++){last=(last+Math.random()*2-1)/1.25;d[i]=last;}setTimeout(()=>{if(c.state!=='closed'){this.explosionBuffer(c,'grenade');this.explosionBuffer(c,'bomb');}},0);}const c=this.context;void this.loadRadio(c);this.recordingLoad=this.recordings.load(async url=>{const response=await fetch(url);if(!response.ok)throw new Error(`Audio ${response.status}: ${url}`);const data=await response.arrayBuffer();if(c.state==='closed')throw new Error('Audio closed');return c.decodeAudioData(data);});void c.resume();}
   private loadRadio(c:AudioContext){
     if(this.radioLoad)return this.radioLoad;
@@ -48,7 +48,7 @@ export class GameAudio {
     else{buffer=this.combatBuffers.get(key);if(!buffer){const signal=combatSignal(c.sampleRate,kind,variant);buffer=c.createBuffer(1,signal.length,c.sampleRate);buffer.getChannelData(0).set(signal);this.combatBuffers.set(key,buffer);}}
     while(this.voices.size>=48){const oldest=this.voices.values().next().value!;oldest.stop();this.voices.delete(oldest);}
     const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain(),pan=c.createStereoPanner();
-    source.buffer=buffer;source.playbackRate.value=playbackRate;filter.type='lowpass';filter.frequency.value=mix.cutoff;filter.Q.value=.5;gain.gain.value=mix.gain*level;pan.pan.value=mix.pan;
+    source.buffer=buffer;source.playbackRate.value=playbackRate;filter.type='lowpass';filter.frequency.value=this.underwater?Math.min(1000,mix.cutoff):mix.cutoff;filter.Q.value=.5;gain.gain.value=mix.gain*level;pan.pan.value=mix.pan;
     source.connect(filter).connect(gain).connect(pan).connect(this.master);this.voices.add(source);
     if(owner){this.cancelReload(owner);this.reloads.set(owner,source);}
     source.onended=()=>{this.voices.delete(source);if(owner&&this.reloads.get(owner)===source)this.reloads.delete(owner);source.disconnect();filter.disconnect();gain.disconnect();pan.disconnect();};

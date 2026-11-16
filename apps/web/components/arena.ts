@@ -1,3 +1,4 @@
+import {IslandSharks} from './island-sharks';
 import {applyMapLighting} from './map-lighting';
 import {TeamRadio} from './team-radio';
 import {DogModels} from './dog-model';
@@ -37,6 +38,7 @@ import {animateGrenadeFlight,grenadeLeavesHand} from './grenade-flight';
 export interface ArenaCallbacks {input:(i:Input)=>void;lock:(locked:boolean)=>void;board:(show:boolean)=>void;pickup:(label:string)=>void;damage:(angle:number)=>void;scope:(level:ScopeLevel)=>void;spectate?:(id:string|null)=>void;}
 export class Arena {
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(76,1,.06,350);renderer:THREE.WebGLRenderer;
+  private sharks?:IslandSharks;private submergedView=false;
   private viewScene=new THREE.Scene();private viewCamera=new THREE.PerspectiveCamera(65,1,.025,8);
   private scope=new SniperScope();private shownScope:ScopeLevel=0;private cycleUntil=0;
   private spectator=new Spectator();private shownSpectator:string|null=null;
@@ -84,7 +86,7 @@ export class Arena {
   }
   preview(index:number|null){this.tourIndex=index;}
   setMap(mapId:MapId){
-    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.explosions.clear();for(const mesh of this.grenadeMeshes.values())disposeGroup(mesh);this.grenadeMeshes.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.lastBombBeeps.clear();this.mapId=mapId;this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,mapId);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
+    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.explosions.clear();for(const mesh of this.grenadeMeshes.values())disposeGroup(mesh);this.grenadeMeshes.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.lastBombBeeps.clear();this.mapId=mapId;this.sharks?.reset();this.submergedView=false;this.audio.underwater=false;if(mapId==='island'&&!this.sharks){this.sharks=new IslandSharks(this.art);this.scene.add(this.sharks.root);}this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,mapId);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
     for(const mesh of this.pickups.values())disposeGroup(mesh);this.pickups.clear();
     for(const p of MAPS[mapId].pickups){const g=new THREE.Group(),gun=this.art.weapon(p.weapon,false);gun.scale.setScalar(.8);gun.rotation.z=Math.PI/2;g.add(gun);const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.018,6,32),new THREE.MeshBasicMaterial({color:'#e9b065'}));ring.rotation.x=Math.PI/2;ring.position.y=-.35;g.add(ring);g.position.set(p.x,p.y+.8,p.z);g.userData.floor=p.y;this.scene.add(g);this.pickups.set(p.id,g);}
     if(this.physicsReady)this.resetPhysics();
@@ -93,7 +95,7 @@ export class Arena {
     if(!this.physicsLoad)this.physicsLoad=import('@dimforge/rapier3d-compat').then(async module=>{const physics=module.default;await physics.init();if(this.destroyed)return;this.rapier=physics;this.physicsReady=true;this.resetPhysics();}).catch(()=>{this.physicsLoad=undefined;});
     return this.physicsLoad;
   }
-  private resetPhysics(){this.particles=[];this.debrisInstances.count=0;this.world?.free();this.world=new this.rapier!.World({x:0,y:-18,z:0});for(const b of MAPS[this.mapId].solids){if(b.style==='water')continue;if(b.polygon||b.ramp){const geometry=solidGeometry(b);const positions=new Float32Array(geometry.attributes.position.array),indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:positions.length/3},(_,i)=>i);this.world.createCollider(this.rapier!.ColliderDesc.trimesh(positions,indices));geometry.dispose();}else this.world.createCollider(this.rapier!.ColliderDesc.cuboid(b.w/2,b.h/2,b.d/2).setTranslation(b.x,b.y,b.z));}this.world.createCollider(this.rapier!.ColliderDesc.cuboid(90,.1,90).setTranslation(0,-.1,0));this.world.step();}
+  private resetPhysics(){this.particles=[];this.debrisInstances.count=0;this.world?.free();this.world=new this.rapier!.World({x:0,y:-18,z:0});for(const b of MAPS[this.mapId].solids){if(b.style==='water')continue;if(b.polygon||b.ramp){const geometry=solidGeometry(b);const positions=new Float32Array(geometry.attributes.position.array),indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:positions.length/3},(_,i)=>i);this.world.createCollider(this.rapier!.ColliderDesc.trimesh(positions,indices));geometry.dispose();}else this.world.createCollider(this.rapier!.ColliderDesc.cuboid(b.w/2,b.h/2,b.d/2).setTranslation(b.x,b.y,b.z));}this.world.createCollider(this.rapier!.ColliderDesc.cuboid(90,.1,90).setTranslation(0,this.mapId==='island'?-3.6:-.1,0));this.world.step();}
   private setGun(kind:Equipment){if(this.gunModels.size&&this.gunKind===kind)return;this.gunKind=kind;this.swingStarted=-Infinity;this.reverseSlash=true;this.equippedAt=performance.now();for(const m of this.gunModels.values())m.visible=false;let m=this.gunModels.get(kind);if(!m){m=this.art.weapon(kind,true,false,this.appearance);this.gunModels.set(kind,m);this.gun.add(m);}m.visible=true;const muzzle=isGun(kind)?m.getObjectByName('muzzle'):undefined;if(muzzle){muzzle.add(this.flash);this.flash.position.set(0,0,-.10);}else{this.gun.add(this.flash);this.flash.position.set(0,.035,-.7);}this.resetScope();}
   private resize(){const r=this.canvas.getBoundingClientRect();this.renderer.setSize(r.width,r.height,false);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();this.viewCamera.aspect=r.width/r.height;this.viewCamera.updateProjectionMatrix();}
   private resetScope(){this.scope.reset();if(this.shownScope){this.shownScope=0;this.callbacks.scope(0);}this.camera.fov=BASE_FOV;this.camera.updateProjectionMatrix();}
@@ -127,9 +129,9 @@ export class Arena {
     // Infer each remote player's gait from server travel, never packet count.
     this.audio.syncReloads(new Set(s.players.filter(p=>p.hp>0&&p.reloadUntil>s.time&&s.phase==='playing').map(p=>p.id)));
     for(const p of s.players){if(p.id===this.id)continue;const steps=this.remoteStep.get(p.id)??new FootstepTracker();
-      const landing=this.remoteLanding.get(p.id)??new LandingTracker();if(oldRound!==s.round){steps.reset();landing.reset();}const impact=landing.update(p,s.time,p.hp>0&&p.connected&&s.phase==='playing');this.remoteLanding.set(p.id,landing);if(impact){const at={x:p.x,y:p.y+.18,z:p.z};this.audio.land(impact.strength,at,surfaceAt(p,MAPS[this.mapId].solids),this.soundOccluded(at));}
+      const landing=this.remoteLanding.get(p.id)??new LandingTracker();if(oldRound!==s.round){steps.reset();landing.reset();}const impact=landing.update(p,s.time,p.hp>0&&p.connected&&s.phase==='playing');this.remoteLanding.set(p.id,landing);if(impact){const at={x:p.x,y:p.y+.18,z:p.z};this.audio.land(impact.strength,at,surfaceAt(p,MAPS[this.mapId].solids,MAPS[this.mapId].water),this.soundOccluded(at));}
       const gait=steps.update(p,s.time,p.hp>0&&s.phase==='playing');
-      if(gait){const at={x:p.x,y:p.y+.18,z:p.z};this.audio.step(gait.crouched,at,surfaceAt(p,MAPS[this.mapId].solids),gait.sprint,this.soundOccluded(at));}
+      if(gait){const at={x:p.x,y:p.y+.18,z:p.z};this.audio.step(gait.crouched,at,surfaceAt(p,MAPS[this.mapId].solids,MAPS[this.mapId].water),gait.sprint,this.soundOccluded(at));}
       this.remoteStep.set(p.id,steps);
     }
     this.snap=s;this.syncSpectator();this.snapshots.push({state:s,received:performance.now()});if(this.snapshots.length>8)this.snapshots.shift();if(!me)return;
@@ -246,8 +248,8 @@ export class Arena {
         const i:Input={...neutralInput(),seq:++this.seq,spawnId:me?.spawnId,scope:live&&this.scope.level?this.scope.level:undefined,forward:live?Number(this.keys.has('KeyW'))-Number(this.keys.has('KeyS')):0,strafe:live?Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA')):0,yaw:this.yaw,pitch:this.pitch,jump:live&&this.jump,sprint:live&&(this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')),fire:live&&(this.fire||this.weapon==='grenade'&&this.grenadePress),reload:live&&this.reload,weapon:this.weapon,crouch:live&&(this.keys.has('KeyC')||this.keys.has('ControlLeft')||this.keys.has('ControlRight')),summon:live&&this.summon,dog:live&&this.dog,spray:live&&this.spray,interact:live&&(this.interact||this.keys.has('KeyE'))};
         this.grenadePress=this.jump=this.reload=this.interact=this.spray=this.dog=false;this.summon=false;if(me?.hp&&this.snap.phase==='playing')this.predicted=move(this.predicted,i,solids,MAPS[this.mapId].ladders);this.pending.push(i);if(this.pending.length>90)this.pending.shift();if(me&&this.snap.phase==='playing')this.predictShot(i,me,now);this.callbacks.input(i);
         const gait=this.localSteps.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');
-        const impact=this.localLanding.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');if(impact)this.audio.land(impact.strength,undefined,surfaceAt(this.predicted,solids));
-        if(gait)this.audio.step(gait.crouched,undefined,surfaceAt(this.predicted,solids),gait.sprint);
+        const impact=this.localLanding.update(this.predicted,this.seq*DT*1000,!!me?.hp&&this.snap.phase==='playing');if(impact)this.audio.land(impact.strength,undefined,surfaceAt(this.predicted,solids,MAPS[this.mapId].water));
+        if(gait)this.audio.step(gait.crouched,undefined,surfaceAt(this.predicted,solids,MAPS[this.mapId].water),gait.sprint);
       }
       const hurt=Math.max(0,(this.hurtUntil-now)/300),shake=this.reduceMotion?0:this.blastShake.strength*Math.max(0,1-(now-this.blastShake.start)/this.blastShake.duration)**2;
       if(viewPose)this.camera.position.set(viewPose.x,viewPose.y,viewPose.z);
@@ -332,6 +334,14 @@ export class Arena {
     this.explosions.update(now);
     if(this.mapRoot&&this.snap)this.impactMarks.update(this.mapRoot,this.snap.time+now-(this.snapshots.at(-1)?.received??now));
     if(this.mapRoot?.userData.jungleTime)this.mapRoot.userData.jungleTime.value=now/1000;
+    const water=MAPS[this.mapId].water,underwater=!!water&&this.camera.position.y<water.level;
+    if(underwater!==this.submergedView){
+      this.submergedView=underwater;this.audio.underwater=underwater;
+      if(underwater){this.scene.fog=new THREE.Fog('#14656c',.4,24);this.scene.background=new THREE.Color('#14656c');const sky=this.scene.getObjectByName('arenaSky');if(sky)sky.visible=false;this.renderer.toneMappingExposure=1.12;const fill=this.viewScene.getObjectByName('handFill') as THREE.DirectionalLight|undefined;if(fill){fill.color.set('#8bcad1');fill.intensity=1.2;}}
+      else this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,this.mapId);
+    }
+    this.sharks?.update(now,this.camera.position,this.mapId==='island'&&underwater);
+    if(!this.active&&this.tourIndex!==null&&this.mapId==='island'&&tourForMap('island')[this.tourIndex]?.name.startsWith('REEF')&&this.sharks?.root.visible){const p=this.sharks.root.position;this.camera.position.set(p.x+4,p.y+.7,p.z+4);this.camera.lookAt(p);}
     this.renderer.autoClear=true;this.renderer.render(this.scene,this.camera);
     if(this.gun.visible){this.renderer.autoClear=false;this.renderer.clearDepth();this.renderer.render(this.viewScene,this.viewCamera);this.renderer.autoClear=true;}
     this.raf=requestAnimationFrame(this.frame);
