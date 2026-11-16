@@ -32,18 +32,20 @@ test('randomizing teams starts a clean game on the same map and updates appearan
  }
 });
 
-test('a guest can randomize teams for the whole room without changing the link or reconnect identities',{timeout:15000},async()=>{
+test('only the host can randomize teams without changing the link or reconnect identities',{timeout:15000},async()=>{
  const server=await createGameServer({secret:'team-shuffle-network-secret-at-least-thirty-two-bytes'}),port=await server.listen(),base=`http://127.0.0.1:${port}`,rooms:Room[]=[],states=new Map<string,Snapshot>(),messages:any[]=[],errors:string[]=[];let invite='';
  const until=async(check:()=>boolean,label:string)=>{const start=Date.now();while(!check()){assert.ok(Date.now()-start<4000,label);await new Promise(r=>setTimeout(r,20));}};
  function attach(room:Room){rooms.push(room);room.reconnection.enabled=false;room.onMessage('snapshot',(s:Snapshot)=>states.set(room.sessionId,s));room.onMessage('combat',()=>{});room.onMessage('teamsRandomized',data=>messages.push(data));room.onMessage('teamChangeError',(data:any)=>errors.push(data.message));room.onMessage('mapChangeError',(data:any)=>errors.push(data.message));}
  async function join(name:string){const response=await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:name,invite:invite||undefined,mapId:'relay',mode:'defusal',teamAvatars:{red:'wonder-woman',blue:'ironman'},moreFun:false})}),data=await response.json();assert.equal(response.status,200);if(!invite)invite=data.invite;assert.equal(data.invite,invite);const room=await new Client(base.replace('http:','ws:')).consumeSeatReservation(data.reservation);attach(room);await until(()=>states.has(room.sessionId),'joined snapshot');return room;}
  try{
   const creator=await join('Creator'),guest=await join('Guest'),third=await join('Third'),roomId=creator.roomId,sim=activeRooms.get(roomId)!.sim,oldMatch=sim.matchId,token=creator.reconnectionToken;
-  creator.connection.close();await until(()=>sim.players.get(creator.sessionId)?.connected===false,'disconnect');guest.send('randomizeTeams');await until(()=>states.get(guest.sessionId)?.matchId!==oldMatch&&messages.length===2,'shared team shuffle');
-  const next=activeRooms.get(roomId)!.sim,assigned=new Map([...next.players.values()].map(p=>[p.id,p.team]));assert.equal(next.mapId,'relay');assert.equal(next.mode,'defusal');assert.equal(next.moreFun,false);assert.equal(next.round,2);assert.equal(guest.roomId,third.roomId);assert.ok(messages.every(message=>message.by==='Guest'));
+  creator.connection.close();await until(()=>sim.players.get(creator.sessionId)?.connected===false,'disconnect');guest.send('randomizeTeams');await until(()=>errors.length===1,'guest cannot shuffle');assert.match(errors[0],/Only the room host/);assert.equal(activeRooms.get(roomId)!.sim,sim);
+  states.delete(creator.sessionId);const restored=await new Client(base.replace('http:','ws:')).reconnect(token);attach(restored);await until(()=>states.has(restored.sessionId),'reconnected snapshot');
+  restored.send('randomizeTeams');await until(()=>states.get(guest.sessionId)?.matchId!==oldMatch&&messages.length===3,'shared host team shuffle');
+  const next=activeRooms.get(roomId)!.sim,assigned=new Map([...next.players.values()].map(p=>[p.id,p.team]));assert.equal(next.mapId,'relay');assert.equal(next.mode,'defusal');assert.equal(next.moreFun,false);assert.equal(next.round,2);assert.equal(guest.roomId,third.roomId);assert.ok(messages.every(message=>message.by==='Creator'));
   const red=[...assigned.values()].filter(team=>team==='red').length;assert.ok(Math.abs(red-(3-red))<=1);
-  guest.send('changeMap','dunes');await until(()=>errors.length===1,'back-to-back room changes are rejected');assert.equal(activeRooms.get(roomId)!.sim.mapId,'relay');
-  states.delete(creator.sessionId);const restored=await new Client(base.replace('http:','ws:')).reconnect(token);attach(restored);await until(()=>states.has(restored.sessionId),'reconnected snapshot');assert.equal(restored.sessionId,creator.sessionId);assert.equal(restored.roomId,roomId);
+  restored.send('changeMap','dunes');await until(()=>errors.length===2,'back-to-back room changes are rejected');assert.equal(activeRooms.get(roomId)!.sim.mapId,'relay');
+  assert.equal(restored.sessionId,creator.sessionId);assert.equal(restored.roomId,roomId);
   for(const room of [restored,guest,third]){const state=states.get(room.sessionId)!;assert.equal(state.matchId,next.matchId);assert.equal(state.players.length,3);for(const player of state.players){assert.equal(player.team,assigned.get(player.id));assert.equal(player.avatar,state.teamAvatars![player.team]);}}
   const response=await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'inspect',invite})}),info=await response.json();assert.equal(response.status,200);assert.equal(info.invite,invite);assert.equal(info.roomId,roomId);assert.equal(info.matchId,next.matchId);
  }finally{for(const room of rooms)if(room.connection.isOpen)await room.leave();await server.close();}

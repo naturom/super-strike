@@ -229,7 +229,7 @@ export class Simulation {
     const p=this.players.get(id);if(p){let y=groundAt(p,this.solids,p.y+.01);for(const b of this.solids)if(footprint(p,b,0)&&solidTop(b,p)<=p.y+.01)y=Math.max(y,solidTop(b,p));Object.assign(bomb,{x:p.x,y,z:p.z});if(p.weapon==='bomb')p.weapon=p.primary;}
     bomb.status='dropped';bomb.carrierId=null;bomb.action=null;
   }
-  private finishBomb(winner:Team|'draw',outcome:string){if(this.phase==='finished')return;this.phase='finished';this.scheduleNextGame();this.winner=winner;this.outcome=outcome;if(winner!=='draw')this.scores[winner]=1;for(const bomb of this.bombs)bomb.action=null;}
+  private finishBomb(winner:Team|'draw',outcome:string){if(this.phase==='finished')return;this.phase='finished';this.scheduleNextGame();this.winner=winner;this.outcome=outcome;if(winner!=='draw')this.scores[winner]++;for(const bomb of this.bombs)bomb.action=null;}
   private stepBomb(){
     // Resolve every fuse before actions, independent of team/player order. An
     // exact simultaneous detonation is a draw; a fuse wins a defuse-time tie.
@@ -277,7 +277,7 @@ export class Simulation {
   }
   private scheduleNextGame(){this.nextRoundAt=this.time+NEXT_GAME_COUNTDOWN_MS+(this.bombs.some(b=>b.status==='exploded')?BOMB_RESULT_DELAY_MS:0);}
   finish(){if(this.phase==='finished')return;this.phase='finished';this.scheduleNextGame();this.winner=this.scores.red===this.scores.blue?'draw':this.scores.red>this.scores.blue?'red':'blue';}
-  rematch(){if(this.phase!=='finished')return;this.wildlife.clear();this.companions.clear();this.round++;this.sprays=[];this.impacts=[];this.scores={red:0,blue:0};this.phase='playing';this.nextRoundAt=0;this.winner=null;this.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;this.roundLive=false;this.outcome='';this.bombIntents.clear();this.grenades=[];this.pickups=MAPS[this.mapId].pickups.map(p=>({...p}));this.flowerRacks=this.moreFun?flowerPickupIds(this.pickups):new Set();for(const p of this.players.values()){p.dogUsed=undefined;p.kills=0;p.deaths=0;this.spawn(p);}if(this.mode==='defusal')this.resetBomb();}
+  rematch(){if(this.phase!=='finished')return;this.wildlife.clear();this.companions.clear();this.round++;this.sprays=[];this.impacts=[];if(this.mode==='deathmatch')this.scores={red:0,blue:0};this.phase='playing';this.nextRoundAt=0;this.winner=null;this.endsAt=this.mode==='defusal'?0:this.time+ROUND_MS;this.roundLive=false;this.outcome='';this.bombIntents.clear();this.grenades=[];this.pickups=MAPS[this.mapId].pickups.map(p=>({...p}));this.flowerRacks=this.moreFun?flowerPickupIds(this.pickups):new Set();for(const p of this.players.values()){p.dogUsed=undefined;p.kills=0;p.deaths=0;this.spawn(p);}if(this.mode==='defusal')this.resetBomb();}
   changeMap(mapId:MapId):Simulation {
     if(mapId===this.mapId)return this;
     return this.newGame(mapId);

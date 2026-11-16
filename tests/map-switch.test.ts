@@ -19,7 +19,7 @@ test('map switches start a clean game while preserving teams, identities, settin
  }
 });
 
-test('any connected player can switch the room without changing its link, including late joins and reconnects',{timeout:20000},async()=>{
+test('only the host can switch the room while preserving its link, late joins and reconnects',{timeout:20000},async()=>{
  const server=await createGameServer({secret:'map-switch-test-secret-at-least-thirty-two-bytes'}),port=await server.listen(),base=`http://127.0.0.1:${port}`,ws=base.replace('http:','ws:'),rooms:Room[]=[],states=new Map<string,Snapshot>(),notices:any[]=[],errors:string[]=[];let invite='';
  const post=async(body:unknown)=>{const r=await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return {status:r.status,data:await r.json()};};
  const until=async(check:()=>boolean,label:string)=>{const start=Date.now();while(!check()){assert.ok(Date.now()-start<5000,label);await new Promise(r=>setTimeout(r,20));}};
@@ -28,13 +28,15 @@ test('any connected player can switch the room without changing its link, includ
  try{
   const {room:creator}=await join('Creator'),{room:guest}=await join('Guest'),roomId=creator.roomId,sim=activeRooms.get(roomId)!.sim,oldMatch=sim.matchId,p=sim.players.get(creator.sessionId)!;
   const token=creator.reconnectionToken;creator.connection.close();await until(()=>p.connected===false,'dropped player');
-  guest.send('changeMap','invalid');await until(()=>errors.length===1,'invalid map rejected');assert.equal(activeRooms.get(roomId)!.sim,sim);
-  guest.send('changeMap','relay');await until(()=>states.get(guest.sessionId)?.mapId==='relay','guest switched map');assert.equal(guest.roomId,roomId);assert.equal(states.get(guest.sessionId)!.mode,'defusal');assert.notEqual(states.get(guest.sessionId)!.matchId,oldMatch);assert.equal(states.get(guest.sessionId)!.round,2);assert.ok(notices.some(n=>n.mapId==='relay'&&n.by==='Guest'));assert.deepEqual(states.get(guest.sessionId)!.impacts,[]);assert.deepEqual(states.get(guest.sessionId)!.sprays,[]);
-  guest.send('changeMap','dunes');await until(()=>errors.length===2,'rapid conflicting map request rejected');assert.equal(activeRooms.get(roomId)!.sim.mapId,'relay');
+  guest.send('changeMap','relay');await until(()=>errors.length===1,'guest cannot switch while the host reconnects');assert.equal(activeRooms.get(roomId)!.sim,sim);
+  assert.match(errors[0],/Only the room host/);
+  states.delete(creator.sessionId);const restored=await new Client(ws).reconnect(token);attach(restored);await until(()=>states.has(restored.sessionId),'host reconnected');assert.equal(states.get(restored.sessionId)!.hostId,restored.sessionId);
+  restored.send('changeMap','relay');await until(()=>states.get(guest.sessionId)?.mapId==='relay','host switched map');assert.equal(guest.roomId,roomId);assert.equal(states.get(guest.sessionId)!.mode,'defusal');assert.notEqual(states.get(guest.sessionId)!.matchId,oldMatch);assert.equal(states.get(guest.sessionId)!.round,2);assert.ok(notices.some(n=>n.mapId==='relay'&&n.by==='Creator'));assert.deepEqual(states.get(guest.sessionId)!.impacts,[]);assert.deepEqual(states.get(guest.sessionId)!.sprays,[]);
+  restored.send('changeMap','dunes');await until(()=>errors.length===2,'rapid conflicting map request rejected');assert.equal(activeRooms.get(roomId)!.sim.mapId,'relay');
   const inspect=await post({action:'inspect',invite});assert.equal(inspect.status,200);assert.equal(inspect.data.mapId,'relay');assert.equal(inspect.data.roomId,roomId);assert.equal(inspect.data.moreFun,false);assert.equal(server.signs.verify(invite).mapId,'dunes','signed link stays byte-for-byte unchanged');
   const {room:late,data}=await join('Late');assert.equal(data.mapId,'relay');assert.equal(data.fresh,false);assert.equal(late.roomId,roomId);assert.equal(states.get(late.sessionId)!.mapId,'relay');
-  states.delete(creator.sessionId);const restored=await new Client(ws).reconnect(token);attach(restored);await until(()=>states.get(restored.sessionId)?.mapId==='relay','reconnect on changed map');assert.equal(restored.sessionId,creator.sessionId);assert.equal(restored.roomId,roomId);assert.equal(states.get(restored.sessionId)!.players.find(p=>p.id===restored.sessionId)!.connected,true);
-  await new Promise(r=>setTimeout(r,1550));late.send('changeMap','dunes');await until(()=>[restored,guest,late].every(room=>states.get(room.sessionId)?.mapId==='dunes'),'all clients return to Dust III');assert.ok([restored,guest,late].every(room=>room.roomId===roomId));assert.equal((await post({action:'inspect',invite})).data.mapId,'dunes');
+  assert.equal(restored.sessionId,creator.sessionId);assert.equal(restored.roomId,roomId);assert.equal(states.get(restored.sessionId)!.players.find(p=>p.id===restored.sessionId)!.connected,true);
+  await new Promise(r=>setTimeout(r,1550));restored.send('changeMap','dunes');await until(()=>[restored,guest,late].every(room=>states.get(room.sessionId)?.mapId==='dunes'),'all clients return to Dust III');assert.ok([restored,guest,late].every(room=>room.roomId===roomId));assert.equal((await post({action:'inspect',invite})).data.mapId,'dunes');
  }finally{for(const room of rooms)if(room.connection.isOpen)await room.leave();await server.close();}
 });
 

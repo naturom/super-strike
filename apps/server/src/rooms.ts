@@ -1,4 +1,5 @@
 import { Room, type Client, ServerError } from '@colyseus/core';
+import {timingSafeEqual} from 'node:crypto';
 import { Simulation } from './simulation';
 import {validInput,validMap,MAPS,SurfaceCursor} from '@sirocco/shared';
 import type { signer } from './invites';
@@ -10,12 +11,15 @@ export function log(event:string,fields:Record<string,unknown>={}){console.log(J
 export class ArenaRoom extends Room {
   sim=new Simulation();
   inviteId='';
+  private hostToken='';
+  private hostId:string|null=null;
   private budgets=new Map<string,{start:number;count:number}>();
   private idle=new Map<string,number>();
   private surfaceClients=new Map<string,SurfaceCursor>();
   private gameChangedAt=-Infinity;
   private profileExpiry?:{clear():void};
-  onCreate(options:{invite:string;awaitProfile?:boolean}) {
+  onCreate(options:{invite:string;hostToken:string;awaitProfile?:boolean}) {
+    this.hostToken=options.hostToken;
     const invitation=inviteSigner.verify(options.invite);this.inviteId=invitation.id;this.sim=new Simulation(invitation.mapId!,invitation.mode,invitation.teamAvatars,invitation.moreFun);
     // A newly created room has no player until someone submits their profile.
     if(options.awaitProfile){this.autoDispose=false;this.profileExpiry=this.clock.setTimeout(()=>{void this.disconnect();},10*60*1000);}
@@ -32,7 +36,7 @@ export class ArenaRoom extends Room {
         else if(Date.now()-(this.idle.get(client.sessionId)??Date.now())>120000)client.leave(4000,'Inactive for two minutes');}
     },1000/30);
     this.clock.setInterval(()=>{
-      const state=this.sim.snapshot(),{impacts,sprays,...motion}=state;
+      const state=this.snapshot(),{impacts,sprays,...motion}=state;
       for(const client of this.clients){const cursor=this.surfaceClients.get(client.sessionId);
         if(!cursor){client.send('snapshot',state);continue;}
         const update=cursor.next({impacts,sprays});if(update)client.send('surfaceUpdates',update);
@@ -54,6 +58,7 @@ export class ArenaRoom extends Room {
     this.onMessage('changeMap',(client,mapId)=>{
       const reject=(message:string)=>client.send('mapChangeError',{message});
       if(!this.allow(client.sessionId)||!this.sim.players.get(client.sessionId)?.connected){reject('Unable to switch maps right now.');return;}
+      if(client.sessionId!==this.hostId){reject('Only the room host can change maps.');return;}
       if(!validMap(mapId)){reject('Choose a valid map.');return;}
       if(mapId===this.sim.mapId){client.send('mapChanged',{mapId,changed:false});return;}
       if(this.sim.mode==='defusal'&&!MAPS[mapId].bombSites?.length){reject('This map does not support bomb defusal.');return;}
@@ -66,6 +71,7 @@ export class ArenaRoom extends Room {
     this.onMessage('randomizeTeams',(client)=>{
       const player=this.sim.players.get(client.sessionId),reject=(message:string)=>client.send('teamChangeError',{message});
       if(!this.allow(client.sessionId)||!player?.connected){reject('Unable to randomize teams right now.');return;}
+      if(client.sessionId!==this.hostId){reject('Only the room host can randomize teams.');return;}
       if(Date.now()-this.gameChangedAt<1500){reject('Please wait a moment before changing the room again.');return;}
       this.restart(this.sim.randomizeTeams());this.idle.set(client.sessionId,Date.now());
       this.broadcast('teamsRandomized',{by:player.name});
@@ -78,18 +84,21 @@ export class ArenaRoom extends Room {
     log('room_created',{room:this.roomId,match:this.sim.matchId});
   }
   private restart(next:Simulation){
-    this.sim=next;this.gameChangedAt=Date.now();const state=this.sim.snapshot();
+    this.sim=next;this.gameChangedAt=Date.now();const state=this.snapshot();
     for(const peer of this.clients){const cursor=this.surfaceClients.get(peer.sessionId);if(cursor)peer.send('surfaceUpdates',cursor.next(state,true));}
     this.broadcast('snapshot',state);
   }
-  onAuth(_client:Client,options:{invite:string;nickname:string}) {
+  private snapshot(){return {...this.sim.snapshot(),hostId:this.hostId};}
+  onAuth(_client:Client,options:{invite:string;nickname:string;hostToken?:unknown}) {
     if(inviteSigner.verify(options.invite).id!==this.inviteId)throw new ServerError(403,'Wrong invitation');
     if(typeof options.nickname!=='string'||!options.nickname.trim()||options.nickname.length>20)throw new ServerError(400,'Nickname must be 1–20 characters');
-    return {name:options.nickname.trim().replace(/[\x00-\x1f\x7f]/g,'')||'Guest'};
+    const token=options.hostToken,host=typeof token==='string'&&!!this.hostToken&&Buffer.byteLength(token)===Buffer.byteLength(this.hostToken)&&timingSafeEqual(Buffer.from(token),Buffer.from(this.hostToken));
+    return {name:options.nickname.trim().replace(/[\x00-\x1f\x7f]/g,'')||'Guest',host};
   }
-  onJoin(client:Client,_options:unknown,auth:{name:string}) {
+  onJoin(client:Client,_options:unknown,auth:{name:string;host:boolean}) {
     this.profileExpiry?.clear();this.profileExpiry=undefined;this.autoDispose=true;
     this.sim.add(client.sessionId,auth.name);this.idle.set(client.sessionId,Date.now());
+    if(auth.host&&!this.hostId)this.hostId=client.sessionId;
     log('player_joined',{room:this.roomId,players:this.sim.players.size});
   }
   onDrop(client:Client) {
@@ -103,6 +112,7 @@ export class ArenaRoom extends Room {
     this.idle.set(client.sessionId,Date.now());log('player_reconnected',{room:this.roomId});
   }
   onLeave(client:Client) {
+    if(client.sessionId===this.hostId)this.hostId=null;
     this.surfaceClients.delete(client.sessionId);
     this.sim.remove(client.sessionId);this.idle.delete(client.sessionId);this.budgets.delete(client.sessionId);
   }

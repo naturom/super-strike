@@ -21,6 +21,21 @@ test('C4 detonation keeps its viewing delay before the five-second countdown and
 test('elimination results in bomb mode use the short countdown without a detonation delay',()=>{
  const sim=new Simulation('dunes','defusal');sim.add('a','A');const b=sim.add('b','B');sim.step();b.hp=0;sim.step();assert.equal(sim.phase,'finished');assert.equal(sim.winner,'red');assert.ok(Math.abs(sim.nextRoundAt-sim.time-NEXT_GAME_COUNTDOWN_MS)<1e-6);
 });
+test('C4 wins accumulate across automatic rounds while players and equipment reset; draws retain the total',()=>{
+ const sim=new Simulation('island','defusal'),a=sim.add('a','A'),b=sim.add('b','B');
+ const advance=()=>{sim.time=sim.nextRoundAt;sim.step();assert.equal(sim.phase,'playing');assert.ok([...sim.players.values()].every(p=>p.hp===100&&p.weapon==='rifle'&&p.grenades===2&&p.kills===0&&p.deaths===0));assert.ok(sim.bombs.every(b=>b.status==='carried'&&b.action===null));};
+ for(const [winner,expected] of [['red',{red:1,blue:0}],['red',{red:2,blue:0}],['blue',{red:2,blue:1}]] as const){
+  sim.step();const loser=winner==='red'?b:a,attacker=winner==='red'?a:b;loser.protectedUntil=0;attacker.grenades=0;sim.damage(loser,100,attacker,'rifle',attacker);sim.step();
+  assert.equal(sim.winner,winner);assert.deepEqual(sim.snapshot().scores,expected);sim.step();assert.deepEqual(sim.scores,expected,'finished rounds cannot award a second point');advance();assert.deepEqual(sim.snapshot().scores,expected);
+ }
+ sim.step();for(const p of [a,b]){p.protectedUntil=0;sim.damage(p,100,p,'grenade',p);}sim.step();assert.equal(sim.winner,'draw');advance();assert.deepEqual(sim.scores,{red:2,blue:1});
+ assert.deepEqual(sim.changeMap('dunes').scores,{red:0,blue:0});assert.deepEqual(sim.randomizeTeams(()=>0).scores,{red:0,blue:0});
+});
+test('a C4 detonation adds one to the existing round wins and preserves the opposing score',()=>{
+ const sim=new Simulation('island','defusal');sim.add('a','A');sim.add('b','B');sim.scores={red:4,blue:3};sim.step();
+ Object.assign(sim.bombs[1],{status:'planted',carrierId:null,siteId:'B',x:0,y:0,z:0,explodeAt:sim.time});sim.step();assert.equal(sim.winner,'blue');assert.deepEqual(sim.scores,{red:4,blue:4});
+ sim.time=sim.nextRoundAt;sim.step();assert.deepEqual(sim.snapshot().scores,{red:4,blue:4});assert.equal(sim.round,2);
+});
 test('all connected and newly joined clients share the automatic countdown; old votes cannot skip it',{timeout:15000},async()=>{
  const server=await createGameServer({secret:'countdown-test-secret-at-least-thirty-two-bytes'}),port=await server.listen(),base=`http://127.0.0.1:${port}`,rooms:Room[]=[],states=new Map<string,Snapshot>();let invite='';
  const until=async(check:()=>boolean)=>{const start=Date.now();while(!check()){assert.ok(Date.now()-start<5000,'countdown state arrived');await new Promise(r=>setTimeout(r,20));}};

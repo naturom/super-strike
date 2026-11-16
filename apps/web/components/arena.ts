@@ -1,4 +1,5 @@
 import {IslandSharks} from './island-sharks';
+import {MovementCorrection} from './movement-correction';
 import {applyMapLighting} from './map-lighting';
 import {TeamRadio} from './team-radio';
 import {DogModels} from './dog-model';
@@ -39,6 +40,7 @@ export interface ArenaCallbacks {input:(i:Input)=>void;lock:(locked:boolean)=>vo
 export class Arena {
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(76,1,.06,350);renderer:THREE.WebGLRenderer;
   private sharks?:IslandSharks;private submergedView=false;
+  private movementCorrection=new MovementCorrection();
   private viewScene=new THREE.Scene();private viewCamera=new THREE.PerspectiveCamera(65,1,.025,8);
   private scope=new SniperScope();private shownScope:ScopeLevel=0;private cycleUntil=0;
   private spectator=new Spectator();private shownSpectator:string|null=null;
@@ -110,6 +112,7 @@ export class Arena {
     return target||undefined;
   }
   private resetLife(weapon:Equipment){
+    this.movementCorrection.reset();
     this.shotFeedback.reset();this.predictedShots=[];this.blur();this.weapon=weapon;this.pending=[];this.accumulator=0;this.recoil=0;this.flashUntil=this.cycleUntil=this.hurtUntil=0;this.swingStarted=-Infinity;this.reverseSlash=true;this.flash.visible=false;this.equippedAt=performance.now();this.stanceMotion=new StanceMotion();this.audio.cancelReload(this.id);this.callbacks.board(false);
     const hold=firstPersonHold(weapon);this.gun.position.set(...hold.position);this.gun.rotation.set(hold.pitch,hold.yaw,0);this.localSteps.reset();this.localLanding.reset();
   }
@@ -119,6 +122,7 @@ export class Arena {
   lock(){if(this.active){void this.canvas.requestPointerLock();this.audio.unlock();this.teamRadio.enter();}}
   setEffects(on:boolean){this.audio.setEnabled(on);}
   update(s:Snapshot){
+    const beforeCorrection=this.predicted;
     if(s.mapId!==this.mapId)this.setMap(s.mapId);
     const me=s.players.find(p=>p.id===this.id),old=this.snap?.players.find(p=>p.id===this.id),oldRound=this.snap?.round;
     if(this.snap&&(this.snap.matchId!==s.matchId||this.snap.round!==s.round)){this.snapshots=[];this.pending=[];this.shotFeedback.reset();this.predictedShots=[];this.updateShotTraces(Infinity);this.impactMarks.clear();this.deadBodies.clear();for(const avatar of this.avatars.values())resetAvatarMotion(avatar);this.callbacks.board(false);}
@@ -143,6 +147,7 @@ export class Arena {
     if(old&&(old.primary!==me.primary||old.secondary!==me.secondary))this.weapon=me.weapon;
     this.seq=Math.max(this.seq,me.ack);this.pending=this.pending.filter(i=>i.seq>me.ack);this.predicted={x:me.x,y:me.y,z:me.z,vy:me.vy,grounded:me.grounded,crouched:me.crouched,climbing:me.climbing};
     if(me.hp>0)for(const i of this.pending)this.predicted=move(this.predicted,i,MAPS[this.mapId].solids,MAPS[this.mapId].ladders);
+    this.movementCorrection.reconcile(beforeCorrection,this.predicted,fresh||me.hp<=0);
     this.shotFeedback.sync(me,s.time,this.pending);
     if(fresh){this.camera.position.set(me.x,me.y+eyeOf(me),me.z);}
     this.teamRadio.update(s,this.id);
@@ -252,8 +257,9 @@ export class Arena {
         if(gait)this.audio.step(gait.crouched,undefined,surfaceAt(this.predicted,solids,MAPS[this.mapId].water),gait.sprint);
       }
       const hurt=Math.max(0,(this.hurtUntil-now)/300),shake=this.reduceMotion?0:this.blastShake.strength*Math.max(0,1-(now-this.blastShake.start)/this.blastShake.duration)**2;
+      this.movementCorrection.advance(dt);const cameraMotion=this.movementCorrection.position(this.predicted,solids);
       if(viewPose)this.camera.position.set(viewPose.x,viewPose.y,viewPose.z);
-      else this.camera.position.lerp(new THREE.Vector3(this.predicted.x,this.predicted.y+(me?.hp?eyeOf(this.predicted):.55),this.predicted.z),Math.min(1,dt*22));
+      else this.camera.position.lerp(new THREE.Vector3(cameraMotion.x,cameraMotion.y+(me?.hp?eyeOf(cameraMotion):.55),cameraMotion.z),Math.min(1,dt*22));
       this.camera.rotation.set((viewPose?.pitch??this.pitch)+(this.reduceMotion?0:this.recoil*.32+hurt*.035)+Math.sin(now*.043)*shake,(viewPose?.yaw??this.yaw)+Math.sin(now*.037)*shake*.55,this.reduceMotion?0:Math.sin(now*.06)*hurt*.012+Math.sin(now*.051)*shake*.5);
       this.audio.listener={x:this.camera.position.x,y:this.camera.position.y,z:this.camera.position.z};this.audio.yaw=viewPose?.yaw??this.yaw;
       const gaitViewer=`${viewPlayer?.id}:${viewPlayer?.spawnId}`;if(this.gaitViewer!==gaitViewer){this.gaitViewer=gaitViewer;this.viewGait=new Locomotion();}

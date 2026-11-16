@@ -1,4 +1,6 @@
 import type {Water} from './water';
+import {movementSolids} from './movement-solids';
+export {movementSolids} from './movement-solids';
 export {WATER_RULES,inWater,fullySubmerged,type Water} from './water';
 import type {AvatarId} from './avatars';
 import {validAvatar} from './avatars';
@@ -85,7 +87,7 @@ export interface Grenade extends Vec3 {id:number;owner:string;team:Team;vx:numbe
 export interface Spray {id:number;owner:string;position:Vec3;normal:Vec3;size?:number;ray?:{origin:Vec3;direction:Vec3};expiresAt:number;}
 export type ImpactSurface='stone'|'wood'|'metal'|'sand'|'asphalt';
 export interface ImpactMark {id:number;at:number;weapon:Weapon|'knife';position:Vec3;normal:Vec3;surface:ImpactSurface;ray:{origin:Vec3;direction:Vec3};expiresAt:number;}
-export interface Snapshot {teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
+export interface Snapshot {hostId?:string|null;teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
 export type HitZone = 'head'|'body';
 export interface CombatEvent {type:'dogDeploy'|'dogBite'|'dogDeath'|'flower'|'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex'|'dog'|'water';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
 export function validInput(value:unknown):value is Input {
@@ -122,6 +124,8 @@ export function groundAt(p:{x:number;z:number},solids:Solid[]=SOLIDS,ceiling=Inf
 }
 export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Ladder[]=[]):Motion {
   const climbing=climbLadder(p,i,solids,ladders);if(climbing)return climbing;
+  // Cover the whole swept foot circle, including a diagonal sprint this tick.
+  solids=movementSolids(solids,p.x,p.z,RADIUS+8*DT+.002);
   const out={...p};if(out.climbing)out.climbing=undefined;out.crouched=!!i.crouch||!!p.crouched&&solids.some(b=>intersects(p,b,HEIGHT));const height=heightOf(out);
   const norm=Math.max(1,Math.hypot(i.forward,i.strafe)),speed=out.crouched?2.5:i.sprint?8:5.5;
   const dx=(-Math.sin(i.yaw)*i.forward+Math.cos(i.yaw)*i.strafe)/norm*speed*DT,dz=(-Math.cos(i.yaw)*i.forward-Math.sin(i.yaw)*i.strafe)/norm*speed*DT;
