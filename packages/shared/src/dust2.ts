@@ -137,8 +137,12 @@ floor('A long platform',842,104,90,46,3.8,'road');
 ramp('CT exit ramp',798,214,44,59,'x',0,2.1);
 // Short is a real bridge above the CT approach; no solid column through the passage.
 floor('Catwalk approach',512,436,20,154,1.7,'tile');
+// Fill the triangular pocket between Catwalk and the bazaar's bevel beside
+// the tower entrance. Its old foundation was too far below the walkway to escape.
+floor('Tower entrance corner apron',532,436,16,18,1.7,'tile');
 ramp('Catwalk entry',512,590,20,30,'z',1.7,2.1,'tile');
-floor('Catwalk',515,386,163,50,1.7,'tile');
+// Meet the retaining wall at u=512; the former 3px strip beside the corner apron was unpaved.
+floor('Catwalk',512,386,166,50,1.7,'tile');
 floor('Catwalk recess',576,372,42,14,1.7,'tile');
 rect('Mid catwalk retaining',503,395,9,164,2.7,0,'wall','plaster');
 ramp('Short stairs',618,334,60,52,'z',3.8,1.7,'tile');

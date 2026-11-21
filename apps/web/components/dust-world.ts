@@ -1,5 +1,6 @@
 import {buildVehicle} from './vehicle-model';
 import {buildLadders} from './ladder-model';
+import {crateBandGeometry} from './crate-bands';
 import * as THREE from 'three';
 import {DUST2,dustPoint,DUST_SCALE,SCOUT_TOWER} from '@sirocco/shared';
 import {solidTop,groundAt,type Solid} from '@sirocco/shared';
@@ -15,6 +16,7 @@ export function buildDust(art:WorldArt){
   const gateWood=art.timber,crateWood=art.material('#baaa8c',{map:art.timber.map,normalMap:art.timber.normalMap,roughnessMap:art.timber.roughnessMap,normalScale:new THREE.Vector2(.3,.3)});
   const blue=art.material('#40677a',{roughness:.76,metalness:.32}),teal=art.material('#497c76'),red=art.material('#ae5847'),iron=art.material('#39413f',{metalness:.55,roughness:.56});
   const glass=art.material('#344b51',{roughness:.3,metalness:.25}),rubber=art.material('#282d2b'),tarp=art.material('#858c6b');
+  const bands=new THREE.Mesh(crateBandGeometry(DUST2.solids.filter(b=>b.kind==='crate'&&b.style!=='metal')),iron);bands.name='Crate metal bands';bands.castShadow=bands.receiveShadow=true;root.add(bands);
   const box=(w:number,h:number,d:number,m:THREE.Material,x:number,y:number,z:number)=>art.box(root,w,h,d,m,x,y,z);
   const material=(b:Solid)=>b.style==='door'?gateWood:b.kind==='floor'&&(b.label?.startsWith('Scout tower')||b.label?.startsWith('Tunnel stair')||b.label?.startsWith('Lower tunnel'))?art.stone:b.style==='road'?road:b.style==='tile'||b.label==='B plant platform'?paving:b.style==='metal'?blue:b.kind==='crate'?crateWood:b.kind==='floor'?art.sand:b.style==='kasbah'?(b.x<-20?clay:ochre):b.style==='plaster'?(b.z>5?chalk:plaster):art.stone;
   art.box(root,230,.25,230,art.sand,0,-.43,0,true);
@@ -40,9 +42,6 @@ export function buildDust(art:WorldArt){
     if(b.label?.startsWith('Tunnel stair tread'))box(b.w-.04,.025,.055,art.trim,b.x,b.y+b.h/2+.012,b.z-b.d/2+.028);
     if(b.kind==='crate')groundContact(art,root,b.x,b.y-b.h/2,b.z,b.w,b.d);
     if(b.kind==='crate'&&b.style!=='metal'){
-      for(const y of [b.y-b.h/2+.12,b.y+b.h/2-.12])box(b.w+.035,.11,b.d+.035,iron,b.x,y,b.z);
-      for(const x of [-b.w/2+.13,b.w/2-.13])box(.1,b.h,b.d+.045,iron,b.x+x,b.y,b.z);
-      if(b.h>2)box(b.w+.06,.09,b.d+.06,iron,b.x,b.y,b.z);
       if(b.label?.includes('default'))box(b.w+.07,.035,b.d+.07,tarp,b.x,b.y+b.h/2+.015,b.z);
     }
     if(b.label==='Blue container'){

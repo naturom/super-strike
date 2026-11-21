@@ -9,7 +9,7 @@ import {WorldArt,disposeGroup} from '../apps/web/components/world';
 import {animateHands} from '../apps/web/components/held-equipment';
 import {AVATARS,type Weapon} from '@sirocco/shared';
 import {Arena} from '../apps/web/components/arena';
-import {SniperScope,BASE_FOV} from '../apps/web/components/sniper-scope';
+import {SniperScope,scopeFov} from '../apps/web/components/sniper-scope';
 import {buildAvatar} from '../apps/web/components/avatar-models';
 import {equipAvatarModel} from '../apps/web/components/avatar-equipment';
 import {animateAvatarMotion} from '../apps/web/components/avatar-motion';
@@ -54,16 +54,18 @@ test('actual barrel sockets drive tracers for every avatar, weapon and animated 
  }finally{art.destroy();globalThis.document=before;THREE.TextureLoader.prototype.load=load;}
 });
 
-test('a scoped AWP shot anchors to its barrel as the weapon becomes visible again',()=>{
- const arena=Object.create(Arena.prototype) as Arena,camera=new THREE.PerspectiveCamera(12,16/9,.06,350),view=new THREE.PerspectiveCamera(65,16/9,.025,8),gun=new THREE.Group(),model=new THREE.Group(),muzzle=new THREE.Object3D(),scene=new THREE.Scene();
+test('a scoped AWP shot keeps both zoom levels and still anchors to the barrel',()=>{
+ for(const level of [1,2] as const)for(const predicted of [true,false]){
+ const arena=Object.create(Arena.prototype) as Arena,camera=new THREE.PerspectiveCamera(scopeFov(level),16/9,.06,350),view=new THREE.PerspectiveCamera(65,16/9,.025,8),gun=new THREE.Group(),model=new THREE.Group(),muzzle=new THREE.Object3D(),scene=new THREE.Scene();
  muzzle.name='muzzle';muzzle.position.set(0,.035,-1.149);model.position.y=.06;model.add(muzzle);gun.add(model);gun.position.set(.32,-.25,-.72);gun.scale.setScalar(.75);gun.visible=false;
- const traces:{object:THREE.Line;localWeapon?:Weapon}[]=[];
- Object.assign(arena,{id:'local',avatars:new Map(),gunKind:'marksman',flash:new THREE.Group(),gun,gunModels:new Map([['marksman',model]]),camera,viewCamera:view,scene,traces,scope:new SniperScope(),shownScope:1,callbacks:{scope:()=>{}},audio:{shot:()=>{}}});
- arena.combat({id:1,type:'shot',shooter:'local',team:'red',weapon:'marksman',from:{x:0,y:0,z:0},to:{x:0,y:0,z:-50}});
- assert.equal(camera.fov,BASE_FOV);assert.equal(traces[0].localWeapon,'marksman','the hidden scope view must not force a shot from the player eye');
+ const traces:{object:THREE.Line;localWeapon?:Weapon}[]=[],scope=new SniperScope();scope.level=level;
+ Object.assign(arena,{id:'local',avatars:new Map(),gunKind:'marksman',flash:new THREE.Group(),gun,gunModels:new Map([['marksman',model]]),camera,viewCamera:view,scene,traces,scope,shownScope:level,callbacks:{scope:()=>assert.fail('a shot must not reset zoom')},audio:{shot:()=>{}}});
+ arena.combat({id:1,type:'shot',shooter:'local',team:'red',weapon:'marksman',from:{x:0,y:0,z:0},to:{x:0,y:0,z:-50}},predicted);
+ assert.equal(camera.fov,scopeFov(level));assert.equal(scope.level,level);assert.equal(traces[0].localWeapon,'marksman','the hidden scope view must not force a shot from the player eye');
  const origin=new THREE.Vector3().fromBufferAttribute(traces[0].object.geometry.attributes.position,0),screen=origin.project(camera),expected=muzzle.getWorldPosition(new THREE.Vector3()).project(view);
  assert.ok(Math.hypot(screen.x-expected.x,screen.y-expected.y)<1e-6);
  for(const trace of traces){trace.object.geometry.dispose();(trace.object.material as THREE.Material).dispose();}
+ }
 });
 
 test('shots leave each animated muzzle once, then keep their world path during turns and weapon switches',()=>{

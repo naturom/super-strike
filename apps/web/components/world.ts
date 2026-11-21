@@ -5,6 +5,7 @@ import {buildDust} from './dust-world';
 import {buildDepot} from './depot-world';
 import {buildIsland} from './island-world';
 import {buildNightMarket} from './market-world';
+import {buildCaverns} from './cave-world';
 import {naturalSand} from './sand-material';
 import {indexStaticMesh} from './static-mesh-index';
 import {type MapId,type Equipment,type AvatarId} from '@sirocco/shared';
@@ -33,6 +34,7 @@ export class WorldArt {
   build(mapId:MapId){
     if(mapId==='dunes')return this.batch(buildDust(this));
     if(mapId==='market')return this.batch(buildNightMarket(this));
+    if(mapId==='caverns')return this.batch(buildCaverns(this));
     if(mapId==='island'){const root=this.batch(buildIsland(this));root.remove(...root.children.filter(child=>child instanceof THREE.Group));return root;}
     return this.batch(buildDepot(this));
   }

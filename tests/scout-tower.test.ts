@@ -1,7 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {DUST2,dustPoint,scoutTowerRoute,SCOUT_TOWER,move,neutralInput,intersects,wallDistance,type Motion} from '@sirocco/shared';
+import {DUST2,dustPoint,scoutTowerRoute,SCOUT_TOWER,move,neutralInput,intersects,wallDistance,groundAt,type Motion} from '@sirocco/shared';
 const ladder=DUST2.ladders!.find(l=>l.id==='scout-tower')!;
+test('the bevel beside the tower entrance is filled flush with Catwalk and cannot trap falling players',()=>{
+ let checked=0;for(let u=532.5;u<548;u+=.5)for(let v=436.5;v<454;v+=.5){const p=dustPoint(u,v,1.7);if(DUST2.solids.some(b=>intersects(p,b)))continue;assert.equal(groundAt(p,DUST2.solids,1.71),1.7,`unfilled corner ${u},${v}`);checked++;}assert.ok(checked>10);
+ for(const [u,v] of [[540,440],[536,442],[537,440]]){let p:Motion={...dustPoint(u,v,4),vy:0,grounded:false};for(let i=0;i<80;i++)p=move(p,neutralInput(),DUST2.solids);assert.equal(p.y,1.7);p=walk(p,dustPoint(523,v,1.7));assert.equal(p.grounded,true);}
+});
+test('Catwalk paving reaches the retaining wall along the gap beside the filled corner',()=>{
+ for(let u=512.1;u<515;u+=.25)for(let v=386.1;v<436;v+=.5)assert.equal(groundAt(dustPoint(u,v),DUST2.solids,1.71),1.7,`unpaved seam ${u},${v}`);
+ let p:Motion={...dustPoint(520,390,1.7),vy:0,grounded:true};p=walk(p,dustPoint(520,440,1.7));p=walk(p,dustPoint(540,440,1.7));assert.equal(p.y,1.7);
+});
 function walk(p:Motion,target:{x:number;y:number;z:number}){
  for(let step=0;step<400&&Math.hypot(target.x-p.x,target.z-p.z)>.13;step++){
   p=move(p,{...neutralInput(),forward:1,yaw:Math.atan2(p.x-target.x,p.z-target.z)},DUST2.solids,DUST2.ladders);

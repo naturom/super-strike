@@ -36,4 +36,13 @@ export const MARKET_TOUR=[
  {name:'FOOD HALL · COVERED AISLE',description:'Serving counters and kitchen equipment create close-range cover beneath the tiled pavilion roof.',eye:{x:-4.4,y:1.7,z:4},target:{x:-3,y:1.5,z:-4}},
  {name:'EAST GATE · DEFEND A',description:'Team B defends the east gate. Approach through Lantern Street or the arcade-side alley.',eye:{x:29,y:1.7,z:-1},target:{x:10,y:2,z:7}},
 ];
-export const tourForMap=(map:MapId)=>map==='market'?MARKET_TOUR:map==='island'?ISLAND_TOUR:map==='relay'?DEPOT_TOUR:MAP_TOUR;
+export const CAVE_TOUR=[
+ {name:'CAVERNS · BIRD’S-EYE OVERVIEW',description:'A cutaway of the full cave network: both grotto bases, the dry gallery, central chamber and flooded southern route.',eye:{x:26,y:65,z:50},target:{x:0,y:-.5,z:0}},
+ {name:'CATHEDRAL · LIMESTONE CHAMBER',description:'A vaulted central chamber with natural columns and several tunnel entrances.',eye:{x:-8,y:1.7,z:5},target:{x:4,y:3.8,z:-2}},
+ {name:'WEST GROTTO · DEFEND B',description:'Team A starts beside Site B. Follow the lamps toward the cathedral or the flanking galleries.',eye:{x:-41,y:1.7,z:4},target:{x:-29,y:2,z:-1}},
+ {name:'DRY GALLERY · UPPER ROUTE',description:'An irregular limestone gallery offers a dry route around the cathedral.',eye:{x:-14,y:1.7,z:-21},target:{x:6,y:2,z:-19}},
+ {name:'WEST POOL · DESCENT',description:'The rock floor slopes gradually into clear water. Follow the lower passage to the other side.',eye:{x:-24,y:1.4,z:15},target:{x:-13,y:-.6,z:21}},
+ {name:'SUNKEN PASSAGE · UNDERWATER',description:'A low submerged tunnel connects the pools. Full submersion starts the ten-second breath timer; both ends lead back to dry ground.',eye:{x:0,y:-1.7,z:22},target:{x:11,y:-1.4,z:20}},
+ {name:'EAST GROTTO · DEFEND A',description:'Team B protects Site A beside its supplies. Dry and flooded approaches meet outside the grotto.',eye:{x:41,y:1.7,z:-4},target:{x:29,y:2,z:1}},
+];
+export const tourForMap=(map:MapId)=>map==='caverns'?CAVE_TOUR:map==='market'?MARKET_TOUR:map==='island'?ISLAND_TOUR:map==='relay'?DEPOT_TOUR:MAP_TOUR;

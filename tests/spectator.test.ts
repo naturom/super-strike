@@ -25,13 +25,13 @@ test('spectator camera follows interpolated first-person eye height, aim and sho
  const pose=spectatorPose(previous,next,.5);assert.equal(pose.x,3);assert.equal(pose.z,4);assert.equal(pose.y,((previous.y+eyeOf(previous))+(next.y+eyeOf(next)))/2);assert.ok(Math.abs(pose.yaw-Math.PI)<1e-9);assert.ok(Math.abs(pose.pitch-.1)<1e-9);
  assert.equal(spectatorPose(previous,next,-10).x,previous.x);assert.equal(spectatorPose(previous,next,10).x,next.x);
 });
-test('sniper zoom is validated, synchronized and cleared by firing, reload, sprint, switching and death',()=>{
+test('sniper zoom persists through firing and clears on reload, sprint, switching and death',()=>{
  const {sim,a}=fixture();a.weapon=a.primary='marksman';a.ammo.marksman=8;let seq=0;
  const input=(over:Partial<Input>={})=>{sim.input(a.id,{...neutralInput(),weapon:a.weapon,seq:++seq,...over});sim.step();};
  for(const scope of [0,1,2] as const)assert.equal(validInput({...neutralInput(),scope}),true);for(const scope of [-1,3,NaN,'2'])assert.equal(validInput({...neutralInput(),scope}),false);
  input({scope:2});assert.equal(a.scope,2);assert.equal(sim.snapshot().players.find(p=>p.id===a.id)!.scope,2);
  input({scope:2,sprint:true});assert.equal(a.scope,undefined);input({scope:1});assert.equal(a.scope,1);
- sim.time+=1000;input({scope:1,fire:true});assert.equal(a.scope,undefined);input({scope:1,reload:true});assert.equal(a.scope,undefined);
+ sim.time+=1000;input({scope:1,fire:true});assert.equal(a.scope,1);assert.equal(sim.snapshot().players.find(p=>p.id===a.id)!.scope,1);input({scope:1,reload:true});assert.equal(a.scope,undefined);
  input({weapon:'pistol',scope:2});assert.equal(a.scope,undefined);a.scope=2;a.protectedUntil=0;sim.damage(a,100,a,'grenade',a);assert.equal(a.scope,undefined);
 });
 test('spectator HUD names the player and explicitly marks Space switching as view only',()=>{

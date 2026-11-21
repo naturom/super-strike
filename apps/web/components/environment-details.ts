@@ -79,7 +79,7 @@ export function wallWear(art:WorldArt,parent:THREE.Group,length:number,base:numb
  if(!stain){
   const c=document.createElement('canvas');c.width=256;c.height=256;const ctx=c.getContext('2d')!,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'rgba(47,42,32,0)');gradient.addColorStop(.55,'rgba(47,42,32,.025)');gradient.addColorStop(1,'rgba(47,42,32,.21)');ctx.fillStyle=gradient;ctx.fillRect(0,0,256,256);
   for(let i=0;i<32;i++){const x=i*71%256,h=30+i*43%130;ctx.fillStyle=`rgba(61,51,35,${.015+i%4*.006})`;ctx.fillRect(x,256-h,2+i%4,h);}
-  const map=new THREE.CanvasTexture(c);map.wrapS=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;art.textures.push(map);stain=art.material('#fff',{map,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});weatherMaterials.set(art,stain);
+  const map=new THREE.CanvasTexture(c);map.wrapS=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;art.textures.push(map);stain=art.material('#fff',{map,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});stain.userData.noRaycast=true;weatherMaterials.set(art,stain);
  }
  const geo=new THREE.PlaneGeometry(length,1.9),uv=geo.attributes.uv;for(let i=0;i<uv.count;i++)uv.setX(i,uv.getX(i)*length/4);
  const grime=new THREE.Mesh(geo,stain);grime.position.set(0,base+.95,.009);parent.add(grime);

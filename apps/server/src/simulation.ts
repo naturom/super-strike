@@ -137,12 +137,12 @@ export class Simulation {
     if(isGun(p.weapon)){
       p.untestedWeapons=p.untestedWeapons?.filter(w=>w!==p.weapon);
       if(this.flowerInventory.get(p.id)?.has(p.weapon)){
-        this.nextShot.set(p.id,this.time+WEAPONS[p.weapon].interval);p.protectedUntil=0;p.scope=undefined;
+        this.nextShot.set(p.id,this.time+WEAPONS[p.weapon].interval);p.protectedUntil=0;if(p.weapon!=='marksman')p.scope=undefined;
         if(!p.flowerWeapons?.includes(p.weapon)){p.flowerWeapons=[...(p.flowerWeapons??[]),p.weapon];this.emit('flower',p,p.weapon,this.eye(p),this.eye(p),{inputSeq:p.ack,spawnId:p.spawnId});}
         return;
       }
     }
-    const w=p.weapon==='knife'?KNIFE:WEAPONS[p.weapon];if(isGun(p.weapon))p.ammo[p.weapon]=Math.max(0,(p.ammo[p.weapon]??0)-1);this.nextShot.set(p.id,this.time+w.interval);p.protectedUntil=0;p.scope=undefined;
+    const w=p.weapon==='knife'?KNIFE:WEAPONS[p.weapon];if(isGun(p.weapon))p.ammo[p.weapon]=Math.max(0,(p.ammo[p.weapon]??0)-1);this.nextShot.set(p.id,this.time+w.interval);p.protectedUntil=0;if(p.weapon!=='marksman')p.scope=undefined;
     const from=this.eye(p),dir=direction(p.yaw,p.pitch);let distance=Math.min(p.weapon==='knife'?KNIFE.range:150,wallDistance(from,dir,this.solids)),target:Player|undefined,creature:Trex|undefined,companion:Dog|undefined,hitZone:HitZone|undefined;
     for(const other of this.players.values()){
       if(other.id===p.id||other.hp<=0)continue;

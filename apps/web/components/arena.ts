@@ -23,6 +23,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import {nearbyLadder,direction,rayPlayer,rayTrex,rayDog,GRENADE_BLAST,grenadeThrowProgress,MAPS,DEFAULT_MAP,DT,WEAPONS,gunRecoil,isSidearm,move,wallDistance,plantSite,canReachBomb,neutralInput,eyeOf,nearestPickup,weaponLabel,isGun,type AvatarId,type Team,type MapId,type Equipment,type Motion,type Input,type Snapshot,type Player,type CombatEvent} from '@sirocco/shared';
 import {tourForMap} from './map-tour';
 import {solidGeometry} from './map-geometry';
+import {setCaveCutaway} from './cave-preview';
 import {GameAudio} from './audio';
 import {FootstepTracker,LandingTracker,surfaceAt} from './combat-audio';
 import {ExplosionEffects} from './explosions';
@@ -71,7 +72,7 @@ export class Arena {
   private observer:ResizeObserver;private reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   constructor(private canvas:HTMLCanvasElement,private callbacks:ArenaCallbacks,initialMap:MapId=DEFAULT_MAP){
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.95;
+    this.renderer.localClippingEnabled=true;this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.95;
     this.sprayMarks=new SprayMarks(this.scene);this.impactMarks=new ImpactMarks(this.scene);
     this.explosions=new ExplosionEffects(this.scene,this.reduceMotion);
     this.art=new WorldArt(this.renderer);this.trexModels=new TrexModels(this.art,this.scene);this.dogModels=new DogModels(this.art,this.scene);this.mirrors=new SpawnMirrors(this.art,this.scene);this.scene.fog=new THREE.Fog('#d5cbb4',120,280);
@@ -88,7 +89,7 @@ export class Arena {
   }
   preview(index:number|null){this.tourIndex=index;}
   setMap(mapId:MapId){
-    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.explosions.clear();for(const mesh of this.grenadeMeshes.values())disposeGroup(mesh);this.grenadeMeshes.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.lastBombBeeps.clear();this.mapId=mapId;this.sharks?.reset();this.submergedView=false;this.audio.underwater=false;if(mapId==='island'&&!this.sharks){this.sharks=new IslandSharks(this.art);this.scene.add(this.sharks.root);}this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,mapId);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;this.scene.add(root);this.mirrors.setMap(mapId);
+    if(this.mapRoot&&this.mapId===mapId)return;this.dogModels.clear();this.trexModels.clear();this.playerNames.clear();this.sprayMarks.clear();this.impactMarks.clear();this.deadBodies.clear();this.explosions.clear();for(const mesh of this.grenadeMeshes.values())disposeGroup(mesh);this.grenadeMeshes.clear();for(const mesh of this.bombMeshes.values())mesh.visible=false;this.lastBombBeeps.clear();this.mapId=mapId;this.sharks?.reset();this.submergedView=false;this.audio.underwater=false;if(mapId==='island'&&!this.sharks){this.sharks=new IslandSharks(this.art);this.scene.add(this.sharks.root);}this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,mapId);this.mapRoot?.removeFromParent();let root=this.roots.get(mapId);if(!root){root=this.art.build(mapId);this.roots.set(mapId,root);}this.mapRoot=root;if(mapId==='caverns')root.userData.caveCutaway=undefined;this.scene.add(root);this.mirrors.setMap(mapId);
     for(const mesh of this.pickups.values())disposeGroup(mesh);this.pickups.clear();
     for(const p of MAPS[mapId].pickups){const g=new THREE.Group(),gun=this.art.weapon(p.weapon,false);gun.scale.setScalar(.8);gun.rotation.z=Math.PI/2;g.add(gun);const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.018,6,32),new THREE.MeshBasicMaterial({color:'#e9b065'}));ring.rotation.x=Math.PI/2;ring.position.y=-.35;g.add(ring);g.position.set(p.x,p.y+.8,p.z);g.userData.floor=p.y;this.scene.add(g);this.pickups.set(p.id,g);}
     if(this.physicsReady)this.resetPhysics();
@@ -97,7 +98,7 @@ export class Arena {
     if(!this.physicsLoad)this.physicsLoad=import('@dimforge/rapier3d-compat').then(async module=>{const physics=module.default;await physics.init();if(this.destroyed)return;this.rapier=physics;this.physicsReady=true;this.resetPhysics();}).catch(()=>{this.physicsLoad=undefined;});
     return this.physicsLoad;
   }
-  private resetPhysics(){this.particles=[];this.debrisInstances.count=0;this.world?.free();this.world=new this.rapier!.World({x:0,y:-18,z:0});for(const b of MAPS[this.mapId].solids){if(b.style==='water')continue;if(b.polygon||b.ramp){const geometry=solidGeometry(b);const positions=new Float32Array(geometry.attributes.position.array),indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:positions.length/3},(_,i)=>i);this.world.createCollider(this.rapier!.ColliderDesc.trimesh(positions,indices));geometry.dispose();}else this.world.createCollider(this.rapier!.ColliderDesc.cuboid(b.w/2,b.h/2,b.d/2).setTranslation(b.x,b.y,b.z));}this.world.createCollider(this.rapier!.ColliderDesc.cuboid(90,.1,90).setTranslation(0,this.mapId==='island'?-3.6:-.1,0));this.world.step();}
+  private resetPhysics(){this.particles=[];this.debrisInstances.count=0;this.world?.free();this.world=new this.rapier!.World({x:0,y:-18,z:0});for(const b of MAPS[this.mapId].solids){if(b.style==='water')continue;if(b.polygon||b.ramp){const geometry=solidGeometry(b);const positions=new Float32Array(geometry.attributes.position.array),indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:positions.length/3},(_,i)=>i);this.world.createCollider(this.rapier!.ColliderDesc.trimesh(positions,indices));geometry.dispose();}else this.world.createCollider(this.rapier!.ColliderDesc.cuboid(b.w/2,b.h/2,b.d/2).setTranslation(b.x,b.y,b.z));}this.world.createCollider(this.rapier!.ColliderDesc.cuboid(90,.1,90).setTranslation(0,MAPS[this.mapId].water?(MAPS[this.mapId].water!.bed??-3.5)-.2:-.1,0));this.world.step();}
   private setGun(kind:Equipment){if(this.gunModels.size&&this.gunKind===kind)return;this.gunKind=kind;this.swingStarted=-Infinity;this.reverseSlash=true;this.equippedAt=performance.now();for(const m of this.gunModels.values())m.visible=false;let m=this.gunModels.get(kind);if(!m){m=this.art.weapon(kind,true,false,this.appearance);this.gunModels.set(kind,m);this.gun.add(m);}m.visible=true;const muzzle=isGun(kind)?m.getObjectByName('muzzle'):undefined;if(muzzle){muzzle.add(this.flash);this.flash.position.set(0,0,-.10);}else{this.gun.add(this.flash);this.flash.position.set(0,.035,-.7);}this.resetScope();}
   private resize(){const r=this.canvas.getBoundingClientRect();this.renderer.setSize(r.width,r.height,false);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();this.viewCamera.aspect=r.width/r.height;this.viewCamera.updateProjectionMatrix();}
   private resetScope(){this.scope.reset();if(this.shownScope){this.shownScope=0;this.callbacks.scope(0);}this.camera.fov=BASE_FOV;this.camera.updateProjectionMatrix();}
@@ -166,7 +167,7 @@ export class Arena {
     if(e.type==='trexRoar'||e.type==='trexAttack'||e.type==='trexDeath'){this.audio.creature(e.type==='trexRoar'?'trex-roar':e.type==='trexAttack'?'trex-bite':'trex-death',e.from,this.soundOccluded(e.from));return;}
     if(e.type==='damage'&&e.target===this.id){this.hurtUntil=performance.now()+300;this.audio.hurt();const angle=Math.atan2(e.from.x-this.predicted.x,-(e.from.z-this.predicted.z))+this.yaw;this.callbacks.damage(angle);return;}
     if(e.type==='spray'){this.audio.spray(mine?undefined:e.to,!!(!mine&&this.soundOccluded(e.to)));return;}
-    if(e.type==='flower'){this.audio.flower(where);if(mine)this.resetScope();return;}
+    if(e.type==='flower'){this.audio.flower(where);return;}
     if(e.type==='reload'){if(isGun(e.weapon))this.audio.reload(e.weapon,e.shooter,where,occluded);return;}
     if(e.type==='bombAction'){this.audio.bombAction(where);return;}
     if(e.type==='bombPlant'){this.audio.bombPlanted(e.from);this.lastBombBeeps.clear();return;}
@@ -187,7 +188,7 @@ export class Arena {
     const confirmed=!predicted&&e.shooter===this.id&&this.shotFeedback?.confirm(e);
     if(!confirmed){
     const shotWeapon=e.weapon;
-    this.audio.shot(e.weapon,where,occluded);if(mine){this.flash.visible=true;this.flashUntil=performance.now()+55;this.recoil=gunRecoil(e.weapon);this.flash.scale.setScalar(e.weapon==='m4a1s'?.4:1);this.cycleUntil=performance.now()+(e.weapon==='marksman'?550:130);if(e.weapon==='marksman')this.resetScope();}
+    this.audio.shot(e.weapon,where,occluded);if(mine){this.flash.visible=true;this.flashUntil=performance.now()+55;this.recoil=gunRecoil(e.weapon);this.flash.scale.setScalar(e.weapon==='m4a1s'?.4:1);this.cycleUntil=performance.now()+(e.weapon==='marksman'?550:130);}
     const localWeapon=mine&&this.gunKind===e.weapon&&this.gunModels.has(e.weapon)?e.weapon:undefined;
     const addTrace=(origin:THREE.Vector3,layer:number,viewWeapon?:keyof typeof MUZZLE_Z)=>{
       const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([origin,new THREE.Vector3(e.to.x,e.to.y,e.to.z)]),new THREE.LineBasicMaterial({color:e.team==='red'?'#ffc58a':'#d6e8ed',transparent:true,opacity:.65}));
@@ -332,7 +333,7 @@ export class Arena {
        animateGrenadeFlight(mesh,g,dt,now,hand);
       }
       for(const [id,g] of this.grenadeMeshes)if(!this.snap.grenades.some(p=>p.id===id)){disposeGroup(g);this.grenadeMeshes.delete(id);}
-    }else if(this.tourIndex!==null){const view=tourForMap(this.mapId)[this.tourIndex];this.camera.position.set(view.eye.x,view.eye.y,view.eye.z);this.camera.lookAt(view.target.x,view.target.y,view.target.z);}else{const a=now*.000012;if(this.mapId==='dunes'){this.camera.position.set(68+Math.sin(a)*4,65,78+Math.cos(a)*3);this.camera.lookAt(0,0,-5);}else if(this.mapId==='market'){this.camera.position.set(35+Math.sin(a)*3,39,40+Math.cos(a)*3);this.camera.lookAt(0,0,0);}else if(this.mapId==='island'){this.camera.position.set(63+Math.sin(a)*4,54,64+Math.cos(a)*4);this.camera.lookAt(0,0,0);}else{this.camera.position.set(28+Math.sin(a)*3,29,31+Math.cos(a)*3);this.camera.lookAt(0,0,0);}}
+    }else if(this.tourIndex!==null){const view=tourForMap(this.mapId)[this.tourIndex];this.camera.position.set(view.eye.x,view.eye.y,view.eye.z);this.camera.lookAt(view.target.x,view.target.y,view.target.z);}else{const a=now*.000012;if(this.mapId==='dunes'){this.camera.position.set(68+Math.sin(a)*4,65,78+Math.cos(a)*3);this.camera.lookAt(0,0,-5);}else if(this.mapId==='caverns'){this.camera.position.set(26+Math.sin(a)*2,65,50+Math.cos(a)*2);this.camera.lookAt(0,-.5,0);}else if(this.mapId==='market'){this.camera.position.set(35+Math.sin(a)*3,39,40+Math.cos(a)*3);this.camera.lookAt(0,0,0);}else if(this.mapId==='island'){this.camera.position.set(63+Math.sin(a)*4,54,64+Math.cos(a)*4);this.camera.lookAt(0,0,0);}else{this.camera.position.set(28+Math.sin(a)*3,29,31+Math.cos(a)*3);this.camera.lookAt(0,0,0);}}
     for(const p of this.pickups.values()){p.rotation.y=now*.0006;p.position.y=(p.userData.floor??0)+.85+Math.sin(now*.002)*.07;}
     if(this.world&&this.particles.length){this.world.timestep=Math.max(1/120,Math.min(dt,1/30));this.world.step();this.particles=this.particles.filter(p=>{if(now<p.until)return true;this.world!.removeRigidBody(p.body);return false;});for(let i=0;i<this.particles.length;i++){const p=this.particles[i],pos=p.body.translation();this.debrisTransform.position.set(pos.x,pos.y,pos.z);this.debrisTransform.quaternion.copy(p.body.rotation());this.debrisTransform.updateMatrix();this.debrisInstances.setMatrixAt(i,this.debrisTransform.matrix);}this.debrisInstances.count=this.particles.length;this.debrisInstances.instanceMatrix.needsUpdate=true;}
     for(const shot of this.predictedShots)this.combat(shot,true);this.predictedShots=[];
@@ -340,11 +341,13 @@ export class Arena {
     this.explosions.update(now);
     if(this.mapRoot&&this.snap)this.impactMarks.update(this.mapRoot,this.snap.time+now-(this.snapshots.at(-1)?.received??now));
     if(this.mapRoot?.userData.jungleTime)this.mapRoot.userData.jungleTime.value=now/1000;
+    const caveOverview=this.mapId==='caverns'&&!this.active&&(this.tourIndex===null||this.tourIndex===0);
+    if(this.mapRoot&&setCaveCutaway(this.mapRoot,caveOverview))this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,this.mapId,caveOverview);
     const water=MAPS[this.mapId].water,underwater=!!water&&this.camera.position.y<water.level;
     if(underwater!==this.submergedView){
       this.submergedView=underwater;this.audio.underwater=underwater;
       if(underwater){this.scene.fog=new THREE.Fog('#14656c',.4,24);this.scene.background=new THREE.Color('#14656c');const sky=this.scene.getObjectByName('arenaSky');if(sky)sky.visible=false;this.renderer.toneMappingExposure=1.12;const fill=this.viewScene.getObjectByName('handFill') as THREE.DirectionalLight|undefined;if(fill){fill.color.set('#8bcad1');fill.intensity=1.2;}}
-      else this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,this.mapId);
+      else this.renderer.toneMappingExposure=applyMapLighting(this.scene,this.viewScene,this.mapId,caveOverview);
     }
     this.sharks?.update(now,this.camera.position,this.mapId==='island'&&underwater);
     if(!this.active&&this.tourIndex!==null&&this.mapId==='island'&&tourForMap('island')[this.tourIndex]?.name.startsWith('REEF')&&this.sharks?.root.visible){const p=this.sharks.root.position;this.camera.position.set(p.x+4,p.y+.7,p.z+4);this.camera.lookAt(p);}

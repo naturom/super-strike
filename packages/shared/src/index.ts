@@ -9,6 +9,8 @@ import {DUST2} from './dust2';
 import {DEPOT} from './depot';
 import {JUNGLE_ISLAND} from './island';
 import {NIGHT_MARKET} from './night-market';
+import {CAVERNS} from './caverns';
+export {CAVERNS,CAVE_PATCHES,CAVE_EDGES,CAVE_ARCHES,CAVE_ROOTS,CAVE_COLUMNS,CAVE_ROUTES,CAVE_WATER,caveField,caveFloor,caveCeiling} from './caverns';
 export {NIGHT_MARKET,MARKET_SHOPS,MARKET_STRINGS} from './night-market';
 export {JUNGLE_ISLAND,ISLAND_TREES,ISLAND_PLANTS,ISLAND_ROCKS,ISLAND_LOGS,ISLAND_SEABED,ISLAND_WATER,ISLAND_COAST,ISLAND_SIZE,ISLAND_PATHS,islandRadius,islandCoast,islandPathDistance} from './island';
 import {climbLadder,type Ladder} from './ladders';
@@ -41,7 +43,7 @@ export const BOMB_RULES={plantMs:3200,fuseMs:40000,defuseMs:10000,range:2.2} as 
 export interface BombSite {id:'A'|'B';x:number;z:number;w:number;d:number;minY:number;maxY:number;marker:Vec3&{size:number};}
 export const BOMB_TARGET:Record<Team,'A'|'B'>={red:'A',blue:'B'};
 export interface BombState extends Vec3 {team:Team;status:'carried'|'dropped'|'planted'|'defused'|'exploded';carrierId:string|null;planter?:{id:string;name:string};siteId:'A'|'B'|null;explodeAt:number;action:{kind:'plant'|'defuse';playerId:string;startedAt:number;completeAt:number}|null;}
-export type MapId = 'dunes' | 'relay' | 'island' | 'market';
+export type MapId = 'dunes' | 'relay' | 'island' | 'market' | 'caverns';
 export type Vec3 = { x: number; y: number; z: number };
 export const TICK_RATE = 30, DT = 1 / TICK_RATE, SNAPSHOT_RATE = 20;
 export const ROUND_MS = 10 * 60 * 1000, WIN_SCORE = 30;
@@ -66,7 +68,7 @@ export type Ammo=Record<'rifle'|'pistol'|'smg'|'marksman',number>&Partial<Record
 export const freshAmmo=():Ammo=>({rifle:30,pistol:12,smg:0,marksman:0});
 export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksman:.065,ak47:.055,m4a1s:.025,p90:.018,scar:.060,m249:.047,deagle:.080})[weapon];
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
-export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; topPlane?:{x:number;z:number;offset:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'|'earth'|'sand'|'wood'|'water'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
+export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; topPlane?:{x:number;z:number;offset:number}; bottomPlane?:{x:number;z:number;offset:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'|'earth'|'sand'|'wood'|'water'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
 export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; }
 export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];water?:Water;}
 export const MAPS:Record<MapId,MapDefinition>={
@@ -74,9 +76,10 @@ export const MAPS:Record<MapId,MapDefinition>={
   relay:DEPOT,
   island:JUNGLE_ISLAND,
   market:NIGHT_MARKET,
+  caverns:CAVERNS,
 };
 export const DEFAULT_MAP:MapId='dunes';
-export const validMap = (value:unknown):value is MapId => value==='dunes'||value==='relay'||value==='island'||value==='market';
+export const validMap = (value:unknown):value is MapId => typeof value==='string'&&Object.hasOwn(MAPS,value);
 export const SOLIDS=MAPS[DEFAULT_MAP].solids, SPAWNS=MAPS[DEFAULT_MAP].spawns;
 export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;dog?:boolean;}
 export const neutralInput=():Input=>({seq:0,forward:0,strafe:0,yaw:0,pitch:0,jump:false,sprint:false,fire:false,reload:false,weapon:'rifle',crouch:false,interact:false});
@@ -127,7 +130,8 @@ export function solidGradient(b:Solid):{x:number;z:number}{
   const slope=b.ramp?(b.ramp.to-b.ramp.from)/(b.ramp.axis==='x'?b.w:b.d):0;
   return {x:b.ramp?.axis==='x'?slope:0,z:b.ramp?.axis==='z'?slope:0};
 }
-export function intersects(p:Vec3,b:Solid,height=HEIGHT,radius=RADIUS){return footprint(p,b,radius)&&p.y+height>b.y-b.h/2+.0001&&p.y<solidTop(b,p)-.0001;}
+export function solidBottom(b:Solid,p:{x:number;z:number}){return b.bottomPlane?b.bottomPlane.offset+b.bottomPlane.x*p.x+b.bottomPlane.z*p.z:b.y-b.h/2;}
+export function intersects(p:Vec3,b:Solid,height=HEIGHT,radius=RADIUS){return footprint(p,b,radius)&&p.y+height>solidBottom(b,p)+.0001&&p.y<solidTop(b,p)-.0001;}
 export function groundAt(p:{x:number;z:number},solids:Solid[]=SOLIDS,ceiling=Infinity){
   let y=-Infinity;for(const b of solids)if(b.kind==='floor'&&footprint(p,b,.001)){const h=solidTop(b,p);if(h<=ceiling)y=Math.max(y,h);}return y===-Infinity?0:y;
 }
@@ -155,7 +159,7 @@ export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Lad
   // Resolve all intersecting surfaces together, independent of declaration order.
   let landing=groundAt(out,solids,oldY+.001),ceiling=Infinity;
   for(const b of solids)if(footprint(out,b)){
-    const top=solidTop(b,out),bottom=b.y-b.h/2;
+    const top=solidTop(b,out),bottom=solidBottom(b,out);
     if(dy<=0&&top<=oldY+.001&&top>=out.y-.001)landing=Math.max(landing,top);
     if(dy>0&&bottom>=oldY+height-.001&&bottom<=out.y+height)ceiling=Math.min(ceiling,bottom-height);
   }
@@ -191,19 +195,20 @@ export function rayPlayer(origin:Vec3,dir:Vec3,p:Motion):{distance:number;zone:H
 export function raySolid(origin:Vec3,dir:Vec3,b:Solid):number|null {
   if(b.style==='water')return null;
   const min={x:b.x-b.w/2,y:b.y-b.h/2,z:b.z-b.d/2},max={x:b.x+b.w/2,y:b.y+b.h/2,z:b.z+b.d/2};
-  const broad=rayBox(origin,dir,min,max);if(broad===null)return null;if(!b.polygon&&!b.ramp&&!b.topPlane)return broad;
+  const broad=rayBox(origin,dir,min,max);if(broad===null)return null;if(!b.polygon&&!b.ramp&&!b.topPlane&&!b.bottomPlane)return broad;
   const candidates:number[]=[broad];
-  if(Math.abs(dir.y)>1e-8){candidates.push((min.y-origin.y)/dir.y);if(!b.ramp)candidates.push((max.y-origin.y)/dir.y);}
+  if(Math.abs(dir.y)>1e-8){candidates.push((min.y-origin.y)/dir.y);if(!b.ramp&&!b.topPlane)candidates.push((max.y-origin.y)/dir.y);}
   if(b.ramp){const axis=b.ramp.axis,size=axis==='x'?b.w:b.d,slope=(b.ramp.to-b.ramp.from)/size;
     const denom=dir.y-slope*dir[axis];if(Math.abs(denom)>1e-8)candidates.push((b.ramp.from+slope*(origin[axis]-min[axis])-origin.y)/denom);
   }
   if(b.topPlane){const p=b.topPlane,denom=dir.y-p.x*dir.x-p.z*dir.z;if(Math.abs(denom)>1e-8)candidates.push((p.offset+p.x*origin.x+p.z*origin.z-origin.y)/denom);}
+  if(b.bottomPlane){const p=b.bottomPlane,denom=dir.y-p.x*dir.x-p.z*dir.z;if(Math.abs(denom)>1e-8)candidates.push((p.offset+p.x*origin.x+p.z*origin.z-origin.y)/denom);}
   const points=b.polygon??[[min.x,min.z],[max.x,min.z],[max.x,max.z],[min.x,max.z]];
   for(let i=0;i<points.length;i++){const a=points[i],c=points[(i+1)%points.length],ex=c[0]-a[0],ez=c[1]-a[1],cross=dir.x*ez-dir.z*ex;if(Math.abs(cross)<1e-8)continue;
     const ax=a[0]-origin.x,az=a[1]-origin.z,t=(ax*ez-az*ex)/cross,u=(ax*dir.z-az*dir.x)/cross;if(u>=0&&u<=1)candidates.push(t);
   }
   candidates.sort((a,c)=>a-c);
-  for(const t of candidates)if(t>=0&&t<=150){const q={x:origin.x+dir.x*(t+1e-5),y:origin.y+dir.y*(t+1e-5),z:origin.z+dir.z*(t+1e-5)};if(footprint(q,b,.00001)&&q.y>=min.y-.0001&&q.y<=solidTop(b,q)+.0001)return t;}
+  for(const t of candidates)if(t>=0&&t<=150){const q={x:origin.x+dir.x*(t+1e-5),y:origin.y+dir.y*(t+1e-5),z:origin.z+dir.z*(t+1e-5)};if(footprint(q,b,.00001)&&q.y>=solidBottom(b,q)-.000001&&q.y<=solidTop(b,q)+.000001)return t;}
   return null;
 }
 /** The fallback ground is only for unmodelled ground; it never floats above a real seabed. */
@@ -224,7 +229,7 @@ export function impactTarget(origin:Vec3,dir:Vec3,solids:Solid[],range=150):Omit
  if(ground)normals.push({x:0,y:1,z:0});
  if(solid){
   if(Math.abs(position.y-solidTop(solid,position))<.001){const slope=solidGradient(solid);normals.push({x:-slope.x,y:1,z:-slope.z});}
-  if(Math.abs(position.y-(solid.y-solid.h/2))<.001)normals.push({x:0,y:-1,z:0});
+  if(Math.abs(position.y-solidBottom(solid,position))<.001)normals.push({x:solid.bottomPlane?.x??0,y:-1,z:solid.bottomPlane?.z??0});
   const points=solid.polygon??[[solid.x-solid.w/2,solid.z-solid.d/2],[solid.x+solid.w/2,solid.z-solid.d/2],[solid.x+solid.w/2,solid.z+solid.d/2],[solid.x-solid.w/2,solid.z+solid.d/2]];
   for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz);if(length&&Math.abs((position.x-a[0])*dz-(position.z-a[1])*dx)/length<.001)normals.push({x:dz/length,y:0,z:-dx/length});}
  }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {solidGradient,solidTop,type Solid} from '@sirocco/shared';
+import {solidGradient,solidTop,solidBottom,type Solid} from '@sirocco/shared';
 
 type Point = [number,number,number];
 type Plane = [number,number,number,number];
@@ -15,9 +15,10 @@ function clip(points:Point[],plane:Plane,inside:boolean):Point[]{
   }
   return result;
 }
+function bottomPlane(b:Solid):Plane{return b.bottomPlane?[-b.bottomPlane.x,1,-b.bottomPlane.z,-b.bottomPlane.offset]:[0,1,0,-b.y+b.h/2];}
 function volumePlanes(b:Solid):Plane[]{
   const slope=solidGradient(b),intercept=solidTop(b,{x:b.x,z:b.z})-slope.x*b.x-slope.z*b.z;
-  return [[1,0,0,-b.x+b.w/2],[-1,0,0,b.x+b.w/2],[0,0,1,-b.z+b.d/2],[0,0,-1,b.z+b.d/2],[0,1,0,-b.y+b.h/2],[slope.x,-1,slope.z,intercept]];
+  return [[1,0,0,-b.x+b.w/2],[-1,0,0,b.x+b.w/2],[0,0,1,-b.z+b.d/2],[0,0,-1,b.z+b.d/2],bottomPlane(b),[slope.x,-1,slope.z,intercept]];
 }
 
 /** Concave building footprints are clipped as a union of triangular prisms. */
@@ -27,7 +28,7 @@ function wallVolumes(b:Solid):Plane[][]{
   return THREE.ShapeUtils.triangulateShape(contour,[]).map(indices=>{
     const pts=indices.map(i=>b.polygon![i]),area=pts.reduce((n,p,i)=>n+p[0]*pts[(i+1)%3][1]-pts[(i+1)%3][0]*p[1],0),sign=Math.sign(area);
     const sides:Plane[]=pts.map((a,i)=>{const c=pts[(i+1)%3],dx=c[0]-a[0],dz=c[1]-a[1];return [-dz*sign,0,dx*sign,(dz*a[0]-dx*a[1])*sign];});
-    return [...sides,[0,1,0,-b.y+b.h/2],volumePlanes(b).at(-1)!] as Plane[];
+    return [...sides,bottomPlane(b),volumePlanes(b).at(-1)!] as Plane[];
   });
 }
 
@@ -88,7 +89,7 @@ export function solidGeometry(b:Solid):THREE.BufferGeometry {
   }else{
     geometry=new THREE.BoxGeometry(b.w,b.h,b.d);geometry.translate(b.x,b.y,b.z);
   }
-  if(b.ramp||b.topPlane){const p=geometry.attributes.position;for(let i=0;i<p.count;i++)if(p.getY(i)>b.y)p.setY(i,solidTop(b,{x:p.getX(i),z:p.getZ(i)}));geometry.computeVertexNormals();}
+  if(b.ramp||b.topPlane||b.bottomPlane){const p=geometry.attributes.position;for(let i=0;i<p.count;i++){const at={x:p.getX(i),z:p.getZ(i)};p.setY(i,p.getY(i)>b.y?solidTop(b,at):solidBottom(b,at));}geometry.computeVertexNormals();}
   const p=geometry.attributes.position,n=geometry.attributes.normal,uv=geometry.attributes.uv;
   for(let i=0;i<p.count;i++)uv.setXY(i,(Math.abs(n.getX(i))>.5?p.getZ(i):p.getX(i))/3,(Math.abs(n.getY(i))>.5?p.getZ(i):p.getY(i))/3);
   return geometry;
