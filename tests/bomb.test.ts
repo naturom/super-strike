@@ -43,14 +43,14 @@ test('defuse rejects distance and wall obstruction; movement and death reset pro
  const {s,red,blue}=planted();Object.assign(blue,dustPoint(590,225));ticks(s,10,[[blue,{interact:true}]]);assert.equal(s.bomb?.action,null);
  Object.assign(blue,{...siteA,x:siteA.x+1});const wall={x:(blue.x+siteA.x)/2,y:siteA.y+1,z:siteA.z,w:.15,h:2,d:3,kind:'wall' as const};s.solids=[...s.solids,wall];ticks(s,10,[[blue,{interact:true}]]);assert.equal(s.bomb?.action,null);s.solids=s.solids.filter(b=>b!==wall);
  Object.assign(blue,siteA);ticks(s,20,[[blue,{interact:true}]]);send(s,blue,{interact:true,strafe:1});s.step();assert.equal(s.bomb?.action,null);
- Object.assign(blue,siteA,{protectedUntil:0});ticks(s,20,[[blue,{interact:true}]]);s.damage(blue,100,red,'rifle',red);s.step();assert.equal(s.bomb?.action,null);assert.equal(s.winner,'red');
+ Object.assign(blue,siteA,{protectedUntil:0});ticks(s,20,[[blue,{interact:true}]]);s.damage(blue,200,red,'rifle',red);s.step();assert.equal(s.bomb?.action,null);assert.equal(s.winner,'red');
 });
 test('killed or disconnected carriers drop C4 and only attackers can recover it',()=>{
- const s=new Simulation('dunes','defusal'),r=s.add('r','Red'),b=s.add('b','Blue'),r2=s.add('r2','Red2');s.step();Object.assign(r,siteA,{protectedUntil:0});Object.assign(r2,siteA);Object.assign(b,siteA);s.damage(r,100,b,'rifle',b);assert.equal(s.bomb?.status,'dropped');
+ const s=new Simulation('dunes','defusal'),r=s.add('r','Red'),b=s.add('b','Blue'),r2=s.add('r2','Red2');s.step();Object.assign(r,siteA,{protectedUntil:0});Object.assign(r2,siteA);Object.assign(b,siteA);s.damage(r,200,b,'rifle',b);assert.equal(s.bomb?.status,'dropped');
  send(s,b,{interact:true});s.step();assert.equal(s.bomb?.carrierId,null);send(s,r2,{interact:true});s.step();assert.equal(s.bomb?.carrierId,r2.id);s.disconnect(r2.id);assert.equal(s.bomb?.status,'dropped');assert.equal(s.bomb?.carrierId,null);
 });
 test('defusal has no combat respawns and elimination wins for the survivor',()=>{
- const s=new Simulation('dunes','defusal'),r=s.add('r','R'),b=s.add('b','B'),r2=s.add('r2','R2');s.step();r.protectedUntil=0;s.damage(r,100,b,'rifle',b);ticks(s,100);assert.equal(r.hp,0);assert.equal(s.phase,'playing');r2.protectedUntil=0;s.damage(r2,100,b,'rifle',b);s.step();assert.equal(s.winner,'blue');
+ const s=new Simulation('dunes','defusal'),r=s.add('r','R'),b=s.add('b','B'),r2=s.add('r2','R2');s.step();r.protectedUntil=0;s.damage(r,200,b,'rifle',b);ticks(s,100);assert.equal(r.hp,0);assert.equal(s.phase,'playing');r2.protectedUntil=0;s.damage(r2,200,b,'rifle',b);s.step();assert.equal(s.winner,'blue');
 });
 test('C4 rounds stay active beyond the former timer and after rematch',()=>{
  const {s}=fixture();assert.equal(s.snapshot().endsAt,0);
@@ -59,7 +59,7 @@ test('C4 rounds stay active beyond the former timer and after rematch',()=>{
  finished.rematch();assert.equal(finished.snapshot().endsAt,0);finished.time+=86400000;finished.step();assert.equal(finished.phase,'playing');assert.equal(finished.winner,null);
 });
 test('eliminating attackers after planting does not stop the fuse',()=>{
- const {s,red,blue}=planted();red.protectedUntil=0;s.damage(red,100,blue,'rifle',blue);s.step();assert.equal(s.phase,'playing');assert.equal(s.bomb?.status,'planted');
+ const {s,red,blue}=planted();red.protectedUntil=0;s.damage(red,200,blue,'rifle',blue);s.step();assert.equal(s.phase,'playing');assert.equal(s.bomb?.status,'planted');
 });
 test('detonation beats a defuse at the same tick, rematch resets C4 and all progress',()=>{
  const {s,blue}=planted();Object.assign(blue,siteA);send(s,blue,{interact:true});s.step();s.bomb!.action!.completeAt=s.bomb!.explodeAt;s.time=s.bomb!.explodeAt-DT*1000;send(s,blue,{interact:true});s.step();assert.equal(s.winner,'red');

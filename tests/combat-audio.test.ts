@@ -12,13 +12,16 @@ test('combat sounds have finite bounded samples, clean endpoints, distinct weapo
 });
 test('AWP reports have a strong low-bass body and a sustained tail without clipping or abrupt edges',()=>{
  for(const rate of [22050,48000])for(let variant=0;variant<4;variant++){
-  const shot=combatSignal(rate,'marksman',variant),rifle=combatSignal(rate,'rifle',variant),alpha=1-Math.exp(-2*Math.PI*100/rate);let low=0,bass=0,total=0,tail=0;
-  for(let i=0;i<shot.length;i++){const sample=shot[i];low+=alpha*(sample-low);bass+=low*low;total+=sample*sample;if(i>rate*.1&&i<rate*.4)tail+=sample*sample;}
+  const shot=combatSignal(rate,'marksman',variant),rifle=combatSignal(rate,'rifle',variant),alpha=1-Math.exp(-2*Math.PI*100/rate);let low=0,bass=0,total=0,tail=0,late=0;
+  for(let i=0;i<shot.length;i++){const sample=shot[i];low+=alpha*(sample-low);bass+=low*low;total+=sample*sample;if(i>rate*.1&&i<rate*.4)tail+=sample*sample;if(i>rate*1.2&&i<rate*1.8)late+=sample*sample;}
   const rifleEnergy=rifle.reduce((sum,sample)=>sum+sample*sample,0);
   assert.ok(bass/total>.30,'the low-end pressure body should be clearly audible below 100 Hz');
-  assert.ok(total/shot.length>rifleEnergy/rifle.length*1.5,'the AWP should carry more weight than the rifle');
+  const bodyEnergy=shot.subarray(0,rifle.length).reduce((sum,sample)=>sum+sample*sample,0);
+  assert.ok(bodyEnergy>rifleEnergy*1.5,'the AWP body should carry more weight over the same listening window');
   assert.ok(tail/(rate*.3)>.004,'the boom should continue after the initial crack');
-  assert.ok(shot.every(sample=>Number.isFinite(sample)&&Math.abs(sample)<=.821));assert.equal(shot[0],0);assert.equal(shot.at(-1),0);
+  assert.ok(shot.length/rate>=2,'the sniper report should have a long decay');
+  assert.ok(late/(rate*.6)>.00002,'audible rolling reflections must remain after 1.2 seconds');
+  assert.ok(shot.every(sample=>Number.isFinite(sample)&&Math.abs(sample)<=.821));assert.equal(Math.abs(shot[0]),0);assert.equal(Math.abs(shot.at(-1)!),0);
  }
 });
 function wav(url:string){

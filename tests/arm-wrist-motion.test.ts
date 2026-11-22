@@ -9,6 +9,7 @@ import {animateHands,type HeldPose} from '../apps/web/components/held-equipment'
 import {gunGrip} from '../apps/web/components/weapon-grips';
 import {boneClearsTorso} from '../apps/web/components/arm-ik';
 import {firstPersonHold} from '../apps/web/components/first-person-hold';
+import {animateAvatarMotion} from '../apps/web/components/avatar-motion';
 function fixture(run:(art:WorldArt)=>void){
  const previous=globalThis.document,load=THREE.TextureLoader.prototype.load,ctx=new Proxy({createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k as keyof typeof o]:()=>{}});
  globalThis.document={createElement:()=>({getContext:()=>ctx})} as unknown as Document;THREE.TextureLoader.prototype.load=function(){return new THREE.Texture();};const art=Object.create(WorldArt.prototype) as WorldArt;art.materials=[];art.textures=[];
@@ -16,6 +17,22 @@ function fixture(run:(art:WorldArt)=>void){
 }
 function equipped(art:WorldArt,avatar:AvatarId,kind:Equipment,third:boolean){const model=third?buildAvatar(art,avatar):undefined,held=model?equipAvatarModel(art,model,kind,avatar):art.weapon(kind,true,false,avatar);return {model,held};}
 function pose(kind:Equipment,p:number,reverseSlash=false):HeldPose{return {reload:isGun(kind)?p:0,plant:kind==='bomb'?p:0,throwProgress:kind==='grenade'?p:0,slash:kind==='knife'?p:1,reverseSlash};}
+
+test('mirror grenade throws keep a continuous elbow and skin through pin pull, wind-up, release and recovery',()=>fixture(art=>{
+ for(const avatar of ['ironman','ultraman','wonder-woman'] as const)for(const pitch of [0,-.55,.55]){
+  const {model,held}=equipped(art,avatar,'grenade',true),previous=new Map<string,{elbow:THREE.Vector3;vertices:Float32Array}>();let grip:THREE.Matrix4|undefined;
+  for(let frame=0;frame<=120;frame++){
+   animateAvatarMotion(model!,'grenade',pose('grenade',frame/120),1/120,true,pitch);
+   const right=held.userData.handRig.right.userData.ironArm,body=held.userData.handRig.body as THREE.Group,contact=body.matrixWorld.clone().invert().multiply(right.palm.matrixWorld);grip??=contact.clone();assert.ok(contact.elements.every((v:number,i:number)=>Math.abs(v-grip!.elements[i])<1e-6),`${avatar}: grenade separates from the gripping palm`);
+   for(const side of ['leftArm','rightArm']){
+    const arm=held.getObjectByName(side)!,rig=arm.userData.ironArm,skin=rig.skin as THREE.Mesh,positions=skin.geometry.attributes.position,vertices=new Float32Array(positions.count*3),point=new THREE.Vector3();for(let i=0;i<positions.count;i++){point.fromBufferAttribute(positions,i).applyMatrix4(skin.matrixWorld);vertices.set(point.toArray(),i*3);}
+    const elbow=arm.localToWorld(rig.elbow.position.clone()),old=previous.get(side);if(old){assert.ok(elbow.distanceTo(old.elbow)<.045,`${avatar} ${pitch} ${side} ${frame}: elbow flips across the arm`);let jump=0;for(let i=0;i<vertices.length;i+=3)jump=Math.max(jump,Math.hypot(vertices[i]-old.vertices[i],vertices[i+1]-old.vertices[i+1],vertices[i+2]-old.vertices[i+2]));assert.ok(jump<.065,`${avatar} ${pitch} ${side} ${frame}: skin twists or snaps ${jump}m`);}
+    previous.set(side,{elbow,vertices});
+   }
+  }
+  disposeGroup(model!);
+ }
+}));
 
 test('all hero arms keep real limb lengths and attainable wrists throughout each separate action',()=>fixture(art=>{
  for(const avatar of ['ironman','ultraman','wonder-woman'] as const)for(const third of [false,true])for(const kind of [...GUNS,'knife','grenade','bomb'] as Equipment[]){

@@ -50,7 +50,7 @@ export function batchWeaponBody(g:THREE.Group){for(const child of [...g.children
 export function addGunDetails(art:WorldArt,body:THREE.Group,kind:Weapon,p:WeaponFinish){
  const g=new THREE.Group();g.name='machined-weapon-details';body.add(g);
  const features:string[]=['machined-receiver','recessed-fasteners','grip-texture'];
- if(kind==='rifle'||kind==='m4a1s'){
+ if(kind==='rifle'){
   // Distinct upper/lower receiver, rear charging handle and buffer assembly.
   block(g,[.083,.034,.335],[0,.058,-.075],p.black,.009);
   block(g,[.094,.034,.040],[0,.014,.147],p.black,.004);

@@ -99,7 +99,9 @@ test('all gun models keep a single animated flower rooted at the muzzle, includi
   for(const kind of GUNS){
    const model=art.weapon(kind,false);model.traverse(o=>o.layers.set(1));updateWeaponFlower(model,false,0,art);assert.equal(model.getObjectByName('muzzle-flower'),undefined);
    updateWeaponFlower(model,true,100,art);const bloom=model.getObjectByName('muzzle-flower')!;assert.equal(bloom.parent,model.getObjectByName('muzzle'));bloom.traverse(o=>assert.equal(o.layers.mask,2,'flower inherits mirror visibility')); assert.ok(bloom.scale.x<.01);
-   updateWeaponFlower(model,true,600,art);assert.equal(bloom.scale.x,1);const count=art.materials.length;updateWeaponFlower(model,true,900,art);assert.equal(art.materials.length,count,'no per-frame materials');
+   updateWeaponFlower(model,true,600,art);assert.equal(bloom.scale.x,1);
+   const center=new THREE.Box3().setFromObject(bloom.getObjectByName('flower-center')!),petals=new THREE.Box3();bloom.children.filter(o=>o.name==='flower-petal').forEach(o=>petals.union(new THREE.Box3().setFromObject(o)));assert.ok(center.min.z<petals.min.z&&center.max.z>petals.max.z,'the centre protrudes in front of the petals from both viewing directions');
+   const count=art.materials.length;updateWeaponFlower(model,true,900,art);assert.equal(art.materials.length,count,'no per-frame materials');
    model.position.set(2,3,4);model.rotation.set(.3,.4,.2);model.scale.setScalar(.75);model.updateMatrixWorld(true);assert.ok(bloom.getWorldPosition(new THREE.Vector3()).distanceTo(bloom.parent!.getWorldPosition(new THREE.Vector3()))<1e-8);
    updateWeaponFlower(model,false,1000,art);assert.equal(bloom.visible,false);disposeGroup(model);
   }

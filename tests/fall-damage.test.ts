@@ -20,22 +20,22 @@ test('drops anywhere deal height-based damage once on landing, including during 
  for(const height of [2,3,3.9,4,4.1,5,8,12,16]){
   const {s,p}=drop(height),events:CombatEvent[]=[];
   while(!p.grounded&&p.hp>0){s.step();events.push(...s.events);if(!p.grounded)assert.equal(p.hp,100,'fall damage must wait until landing');}
-  const amount=fallDamage(height);assert.equal(p.hp,100-amount);assert.equal(damage(events).length,amount?1:0);if(amount)assert.equal(damage(events)[0].damage,amount);
+  const amount=fallDamage(height)/2;assert.equal(p.hp,100-amount);assert.equal(damage(events).length,amount?1:0);if(amount)assert.equal(damage(events)[0].damage,amount);
   assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});if(p.hp>0){run(s,p,25);assert.equal(p.hp,100-amount,'standing on the landing must not repeat the damage');}
  }
 });
 test('walking off an ordinary unlabelled box counts a fall on the Relay map',()=>{
  const box:Solid={x:0,y:5.9,z:0,w:2,h:.2,d:4,kind:'crate'},s=new Simulation([box]),p=s.add('a','Jumper');Object.assign(p,{x:0,y:6,z:0,grounded:true,protectedUntil:100000});
- const result=run(s,p,70,{strafe:1});assert.equal(s.mapId,'relay');assert.equal(p.y,0);assert.equal(p.hp,100-fallDamage(6));assert.equal(damage(result.events).length,1);
+ const result=run(s,p,70,{strafe:1});assert.equal(s.mapId,'relay');assert.equal(p.y,0);assert.equal(p.hp,100-fallDamage(6)/2);assert.equal(damage(result.events).length,1);
 });
 test('landing on a roof measures only the distance to that roof, then resets for a second drop to ground',()=>{
  const start:Solid={x:0,y:11.9,z:0,w:2,h:.2,d:4,kind:'roof'},roof:Solid={x:5,y:5.9,z:0,w:4,h:.2,d:4,kind:'roof'},s=new Simulation([start,roof]),p=s.add('a','Jumper');Object.assign(p,{x:0,y:12,z:0,grounded:true,protectedUntil:100000});
  const events:CombatEvent[]=[];for(let i=0;i<70;i++){const step=run(s,p,1,{strafe:1});events.push(...step.events);if(p.grounded&&p.y===6)break;}
- assert.equal(p.y,6);assert.equal(p.grounded,true);assert.equal(p.hp,100-fallDamage(6));assert.equal(damage(events).length,1);
- run(s,p,8);const second=run(s,p,90,{strafe:1});assert.equal(p.y,0);assert.equal(p.hp,100-2*fallDamage(6));assert.equal(damage(second.events).length,1);assert.equal(damage(second.events)[0].damage,fallDamage(6));
+ assert.equal(p.y,6);assert.equal(p.grounded,true);assert.equal(p.hp,100-fallDamage(6)/2);assert.equal(damage(events).length,1);
+ run(s,p,8);const second=run(s,p,90,{strafe:1});assert.equal(p.y,0);assert.equal(p.hp,100-fallDamage(6));assert.equal(damage(second.events).length,1);assert.equal(damage(second.events)[0].damage,fallDamage(6)/2);
 });
 test('the same fall height hurts equally when crouched and standing',()=>{
- for(const crouched of [false,true]){const {s,p}=drop(8,[],crouched),result=run(s,p,60,{crouch:crouched});assert.equal(p.hp,100-fallDamage(8));assert.equal(damage(result.events).length,1);}
+ for(const crouched of [false,true]){const {s,p}=drop(8,[],crouched),result=run(s,p,60,{crouch:crouched});assert.equal(p.hp,100-fallDamage(8)/2);assert.equal(damage(result.events).length,1);}
 });
 test('normal jumps, descending stairs and continuous slopes do not accumulate fall damage',()=>{
  const platform:Solid={x:0,y:7.9,z:0,w:20,h:.2,d:20,kind:'roof'},s=new Simulation([platform]),p=s.add('a','Jumper');Object.assign(p,{x:0,y:8,z:0,grounded:true});
@@ -44,8 +44,8 @@ test('normal jumps, descending stairs and continuous slopes do not accumulate fa
  const stairs:Solid[]=Array.from({length:30},(_,i)=>({x:i*.5,y:(6-i*.2)/2,z:0,w:.5,h:6-i*.2,d:4,kind:'floor'}));const t=new Simulation(stairs),stepper=t.add('c','Stepper');Object.assign(stepper,{x:0,y:6,z:0,grounded:true});const down=run(t,stepper,100,{strafe:1});assert.equal(stepper.y,0);assert.equal(stepper.hp,100);assert.equal(damage(down.events).length,0);
 });
 test('hitting a ceiling does not clear the fall height, and jumping from a ledge includes the apex',()=>{
- const ceiling:Solid={x:0,y:10.3,z:0,w:4,h:.2,d:4,kind:'roof'},first=drop(8,[ceiling]);first.p.vy=5;const blocked=run(first.s,first.p,90);assert.ok(blocked.peak>8&&blocked.peak<=8.40001);assert.equal(first.p.hp,100-fallDamage(blocked.peak));assert.equal(damage(blocked.events).length,1);
- const platform:Solid={x:0,y:5.9,z:0,w:2,h:.2,d:4,kind:'roof'},s=new Simulation([platform]),p=s.add('a','Jumper');Object.assign(p,{x:1.2,y:6,z:0,grounded:true});run(s,p,1,{jump:true,strafe:1});const result=run(s,p,70,{strafe:1});assert.ok(result.peak>7.5);assert.equal(p.hp,100-fallDamage(result.peak));assert.ok(fallDamage(result.peak)>fallDamage(6));
+ const ceiling:Solid={x:0,y:10.3,z:0,w:4,h:.2,d:4,kind:'roof'},first=drop(8,[ceiling]);first.p.vy=5;const blocked=run(first.s,first.p,90);assert.ok(blocked.peak>8&&blocked.peak<=8.40001);assert.equal(first.p.hp,100-fallDamage(blocked.peak)/2);assert.equal(damage(blocked.events).length,1);
+ const platform:Solid={x:0,y:5.9,z:0,w:2,h:.2,d:4,kind:'roof'},s=new Simulation([platform]),p=s.add('a','Jumper');Object.assign(p,{x:1.2,y:6,z:0,grounded:true});run(s,p,1,{jump:true,strafe:1});const result=run(s,p,70,{strafe:1});assert.ok(result.peak>7.5);assert.equal(p.hp,100-fallDamage(result.peak)/2);assert.ok(fallDamage(result.peak)>fallDamage(6));
 });
 test('respawn, rematch and seat reuse clear a previous airborne fall',()=>{
  const {s,p}=drop(20);run(s,p,5);s.spawn(p);run(s,p,30);assert.equal(p.hp,100);
@@ -53,10 +53,10 @@ test('respawn, rematch and seat reuse clear a previous airborne fall',()=>{
  Object.assign(p,{x:0,y:20,z:0,grounded:false});run(s,p,5);s.remove(p.id);const replacement=s.add(p.id,'Replacement');run(s,replacement,30);assert.equal(replacement.hp,100);
 });
 test('a fatal fall records a body, death and five-second respawn without awarding points',()=>{
- const {s,p}=drop(16),result=run(s,p);assert.equal(p.hp,0);assert.equal(p.deaths,1);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});assert.equal(result.events.find(e=>e.type==='kill')?.cause,'fall');assert.equal(p.respawnAt-p.death!.at,RESPAWN_MS);
+ const {s,p}=drop(16);p.hp=50;const result=run(s,p);assert.equal(p.hp,0);assert.equal(p.deaths,1);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});assert.equal(result.events.find(e=>e.type==='kill')?.cause,'fall');assert.equal(p.respawnAt-p.death!.at,RESPAWN_MS);
 });
 test('tower-to-roof falls use the same height curve as every other surface',()=>{
- const {s,p}=towerPlayer(),result=jumpOff(s),hits=damage(result.events);assert.equal(hits.length,1);assert.equal(hits[0].damage,fallDamage(result.peak-p.y));assert.equal(p.hp,100-hits[0].damage);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});
+ const {s,p}=towerPlayer(),result=jumpOff(s),hits=damage(result.events);assert.equal(hits.length,1);assert.equal(hits[0].damage,fallDamage(result.peak-p.y)/2);assert.equal(p.hp,100-hits[0].damage);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});
 });
 test('a fatal height-based fall eliminates the player in C4 mode',()=>{
  const s=new Simulation('dunes','defusal'),p=s.add('a','Jumper');s.add('b','Opponent');Object.assign(p,{...dustPoint(613,575,SCOUT_TOWER.deck),hp:5,protectedUntil:0});jumpOff(s);assert.equal(p.hp,0);assert.equal(p.deaths,1);assert.equal(s.winner,'blue');assert.equal(s.phase,'finished');
@@ -65,6 +65,6 @@ for(const [side,u,v,yaw] of [['west',511.5,525,Math.PI/2],['east',622.5,525,-Mat
  test(`the outer lip of the ${side} tower parapet uses the generic fall curve`,()=>{
   const {s,p}=towerPlayer();Object.assign(p,{...dustPoint(u,v,SCOUT_TOWER.deck+.78),grounded:true});const events:CombatEvent[]=[];let peak=p.y;
   for(let seq=1;seq<=90;seq++){s.input(p.id,{...neutralInput(),seq,forward:seq<=12?1:0,yaw});s.step();peak=Math.max(peak,p.y);events.push(...s.events);if(p.hp===0)break;}
-  assert.equal(damage(events).length,1);assert.equal(damage(events)[0].damage,fallDamage(peak-p.y));assert.equal(p.hp,100-fallDamage(peak-p.y));
+  assert.equal(damage(events).length,1);assert.equal(damage(events)[0].damage,fallDamage(peak-p.y)/2);assert.equal(p.hp,100-fallDamage(peak-p.y)/2);
  });
 }

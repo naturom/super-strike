@@ -9,7 +9,7 @@ import {SpectatorHud} from '../apps/web/components/SpectatorHud';
 import {Simulation} from '../apps/server/src/simulation';
 import {createGameServer} from '../apps/server/src/http';
 import {activeRooms} from '../apps/server/src/rooms';
-function fixture(){const sim=new Simulation('dunes','defusal'),viewer=sim.add('viewer','Viewer'),a=sim.add('a','First'),b=sim.add('b','Second');sim.step();viewer.protectedUntil=0;sim.damage(viewer,100,viewer,'grenade',viewer);return {sim,viewer,a,b,spectator:new Spectator()};}
+function fixture(){const sim=new Simulation('dunes','defusal'),viewer=sim.add('viewer','Viewer'),a=sim.add('a','First'),b=sim.add('b','Second');sim.step();viewer.protectedUntil=0;sim.damage(viewer,200,viewer,'grenade',viewer);return {sim,viewer,a,b,spectator:new Spectator()};}
 test('only a dead bomb-defusal player can spectate living connected players, including either team',()=>{
  const {sim,viewer,a,b,spectator}=fixture();assert.equal(spectator.sync(sim.snapshot(),viewer.id)?.id,a.id);assert.equal(spectator.next(sim.snapshot(),viewer.id)?.id,b.id);assert.equal(spectator.next(sim.snapshot(),viewer.id)?.id,a.id);
  const state=sim.snapshot();for(const invalid of [{...state,mode:'deathmatch' as const},{...state,phase:'finished' as const},{...state,players:state.players.map(p=>p.id===viewer.id?{...p,hp:100}:p)},{...state,players:state.players.map(p=>p.id===viewer.id?{...p,death:undefined}:p)}])assert.equal(spectator.sync(invalid,viewer.id),undefined);
@@ -32,7 +32,7 @@ test('sniper zoom persists through firing and clears on reload, sprint, switchin
  input({scope:2});assert.equal(a.scope,2);assert.equal(sim.snapshot().players.find(p=>p.id===a.id)!.scope,2);
  input({scope:2,sprint:true});assert.equal(a.scope,undefined);input({scope:1});assert.equal(a.scope,1);
  sim.time+=1000;input({scope:1,fire:true});assert.equal(a.scope,1);assert.equal(sim.snapshot().players.find(p=>p.id===a.id)!.scope,1);input({scope:1,reload:true});assert.equal(a.scope,undefined);
- input({weapon:'pistol',scope:2});assert.equal(a.scope,undefined);a.scope=2;a.protectedUntil=0;sim.damage(a,100,a,'grenade',a);assert.equal(a.scope,undefined);
+ input({weapon:'pistol',scope:2});assert.equal(a.scope,undefined);a.scope=2;a.protectedUntil=0;sim.damage(a,200,a,'grenade',a);assert.equal(a.scope,undefined);
 });
 test('spectator HUD names the player and explicitly marks Space switching as view only',()=>{
  const {a}=fixture(),html=renderToStaticMarkup(createElement(SpectatorHud,{player:a}));assert.match(html,/VIEW ONLY/);assert.match(html,/SPACE/);assert.match(html,/First/);assert.match(html,/NEXT PLAYER/);
@@ -50,7 +50,7 @@ test('a dead network client sees living aim and scope updates but cannot control
   // participate rather than depending on the third join beating round start.
   sim.finish();sim.rematch();
   const viewer=sim.players.get(rooms[0].sessionId)!,target=sim.players.get(rooms[1].sessionId)!;await until(()=>sim.roundLive);
-  viewer.protectedUntil=0;sim.damage(viewer,100,viewer,'grenade',viewer);await until(()=>state?.players.find(p=>p.id===viewer.id)?.hp===0);
+  viewer.protectedUntil=0;sim.damage(viewer,200,viewer,'grenade',viewer);await until(()=>state?.players.find(p=>p.id===viewer.id)?.hp===0);
   const spectator=new Spectator();assert.equal(spectator.sync(state!,viewer.id)?.id,target.id);target.weapon=target.primary='marksman';target.ammo.marksman=8;
   rooms[1].send('input',{...neutralInput(),seq:1,weapon:'marksman',yaw:1.2,pitch:.3,crouch:true,scope:2});await until(()=>state?.players.find(p=>p.id===target.id)?.scope===2);
   const remote=spectator.sync(state!,viewer.id)!;assert.equal(remote.yaw,1.2);assert.equal(remote.pitch,.3);assert.equal(remote.crouched,true);assert.equal(remote.weapon,'marksman');

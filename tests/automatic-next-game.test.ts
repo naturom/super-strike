@@ -25,10 +25,10 @@ test('C4 wins accumulate across automatic rounds while players and equipment res
  const sim=new Simulation('island','defusal'),a=sim.add('a','A'),b=sim.add('b','B');
  const advance=()=>{sim.time=sim.nextRoundAt;sim.step();assert.equal(sim.phase,'playing');assert.ok([...sim.players.values()].every(p=>p.hp===100&&p.weapon==='rifle'&&p.grenades===2&&p.kills===0&&p.deaths===0));assert.ok(sim.bombs.every(b=>b.status==='carried'&&b.action===null));};
  for(const [winner,expected] of [['red',{red:1,blue:0}],['red',{red:2,blue:0}],['blue',{red:2,blue:1}]] as const){
-  sim.step();const loser=winner==='red'?b:a,attacker=winner==='red'?a:b;loser.protectedUntil=0;attacker.grenades=0;sim.damage(loser,100,attacker,'rifle',attacker);sim.step();
+  sim.step();const loser=winner==='red'?b:a,attacker=winner==='red'?a:b;loser.protectedUntil=0;attacker.grenades=0;sim.damage(loser,200,attacker,'rifle',attacker);sim.step();
   assert.equal(sim.winner,winner);assert.deepEqual(sim.snapshot().scores,expected);sim.step();assert.deepEqual(sim.scores,expected,'finished rounds cannot award a second point');advance();assert.deepEqual(sim.snapshot().scores,expected);
  }
- sim.step();for(const p of [a,b]){p.protectedUntil=0;sim.damage(p,100,p,'grenade',p);}sim.step();assert.equal(sim.winner,'draw');advance();assert.deepEqual(sim.scores,{red:2,blue:1});
+ sim.step();for(const p of [a,b]){p.protectedUntil=0;sim.damage(p,200,p,'grenade',p);}sim.step();assert.equal(sim.winner,'draw');advance();assert.deepEqual(sim.scores,{red:2,blue:1});
  assert.deepEqual(sim.changeMap('dunes').scores,{red:0,blue:0});assert.deepEqual(sim.randomizeTeams(()=>0).scores,{red:0,blue:0});
 });
 test('a C4 detonation adds one to the existing round wins and preserves the opposing score',()=>{

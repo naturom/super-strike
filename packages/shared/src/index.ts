@@ -49,6 +49,8 @@ export const TICK_RATE = 30, DT = 1 / TICK_RATE, SNAPSHOT_RATE = 20;
 export const ROUND_MS = 10 * 60 * 1000, WIN_SCORE = 30;
 export const NEXT_GAME_COUNTDOWN_MS=5000,BOMB_RESULT_DELAY_MS=3200;
 export const RESPAWN_MS=5000;
+/** Health remains on a 0–100 scale, with twice the original damage tolerance. */
+export const PLAYER_HEALTH={max:100,damageScale:.5} as const;
 export const IMPACT_RULES={limit:160,bulletLifetimeMs:5000,knifeLifetimeMs:120000} as const;
 export const HEIGHT = 1.8, EYE = 1.6, CROUCH_HEIGHT = 1.1, CROUCH_EYE = .95, RADIUS = .34;
 export const WEAPONS = {
@@ -69,7 +71,7 @@ export const freshAmmo=():Ammo=>({rifle:30,pistol:12,smg:0,marksman:0});
 export const gunRecoil=(weapon:Weapon)=>({rifle:.035,pistol:.028,smg:.025,marksman:.065,ak47:.055,m4a1s:.025,p90:.018,scar:.060,m249:.047,deagle:.080})[weapon];
 export const weaponLabel = (weapon: Equipment) => weapon === 'bomb' ? 'C4' : weapon === 'knife' ? 'KNIFE' : weapon === 'grenade' ? 'FRAG' : WEAPONS[weapon].label;
 export type Solid = { x: number; y: number; z: number; w: number; h: number; d: number; kind: 'wall' | 'crate' | 'roof' | 'floor'; polygon?: [number,number][]; ramp?: {axis:'x'|'z';from:number;to:number}; topPlane?:{x:number;z:number;offset:number}; bottomPlane?:{x:number;z:number;offset:number}; style?: 'plaster'|'kasbah'|'stone'|'road'|'tile'|'door'|'metal'|'earth'|'sand'|'wood'|'water'; label?:string;vehicle?:{part:'body'|'cabin'|'cargo';height:number;truck:boolean} };
-export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; }
+export interface Pickup extends Vec3 { id:string; weapon:Weapon; availableAt:number; base?:Team; dropped?:true;ammo?:number;yaw?:number; }
 export interface MapDefinition {id:MapId;name:string;subtitle:string;description:string;solids:Solid[];spawns:Record<Team,Vec3[]>;spawnYaw?:Record<Team,number>;pickups:Pickup[];ladders?:Ladder[];bounds?:{minX:number;maxX:number;minZ:number;maxZ:number};landmarks?:{name:string;x:number;z:number}[];bombSites?:BombSite[];water?:Water;}
 export const MAPS:Record<MapId,MapDefinition>={
   dunes:DUST2,

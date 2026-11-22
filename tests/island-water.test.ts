@@ -20,18 +20,18 @@ test('submersion uses the whole standing or crouched body rather than eye or foo
 });
 test('no HP is lost during the first ten seconds underwater; subsequent loss is gradual, authoritative and ignores protection',()=>{
  const {s,p}=diver();assert.equal(fullySubmerged(p,map.water),true);const first=tick(s,300);assert.equal(p.hp,100);assert.equal(waterDamage(first).length,0);
- const next=tick(s,31);assert.equal(p.hp,95);assert.equal(waterDamage(next).length,1);assert.equal(waterDamage(next)[0].damage,5);
- const more=tick(s,90);assert.equal(p.hp,80);assert.equal(waterDamage(more).length,3);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});
+ const next=tick(s,31);assert.equal(p.hp,97.5);assert.equal(waterDamage(next).length,1);assert.equal(waterDamage(next)[0].damage,2.5);
+ const more=tick(s,90);assert.equal(p.hp,90);assert.equal(waterDamage(more).length,3);assert.equal(p.kills,0);assert.deepEqual(s.scores,{red:0,blue:0});
 });
 test('wading has no time limit and exposing any part of the body resets the full-submersion timer',()=>{
  const {s,p}=diver();tick(s,250);const coast=ISLAND_COAST[0],shallow={x:coast[0]*1.06,z:coast[1]*1.06};Object.assign(p,shallow,{y:groundAt(shallow,map.solids),crouched:false});assert.equal(inWater(p,map.water),true);assert.equal(fullySubmerged(p,map.water),false);tick(s,1500);assert.equal(p.hp,100);
- Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100);tick(s,31);assert.equal(p.hp,95);
+ Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100);tick(s,31);assert.equal(p.hp,97.5);
  s.spawn(p);tick(s,10);Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100,'respawn restores a full breath');
  s.finish();s.rematch();Object.assign(p,deep);tick(s,300);assert.equal(p.hp,100,'new games clear prior exposure');
  s.remove(p.id);const replacement=s.add('a','Replacement');Object.assign(replacement,deep);tick(s,300);assert.equal(replacement.hp,100,'seat reuse clears exposure');
 });
 test('drowning uses normal death and C4 rules, with no self-awarded kill or score',()=>{
- for(const mode of ['deathmatch','defusal'] as const){const {s,p}=diver(mode);if(mode==='defusal')s.add('b','Opponent');p.hp=5;const events=tick(s,332),kill=events.find(e=>e.type==='kill'&&e.cause==='water');assert.ok(kill);assert.equal(p.hp,0);assert.equal(p.deaths,1);assert.equal(p.kills,0);assert.equal(killDescription(kill).method,'DROWNED');if(mode==='defusal'){assert.equal(s.phase,'finished');assert.equal(s.winner,'blue');assert.ok(s.bombs.find(b=>b.team===p.team)!.y< -2.6,'dropped C4 settles on the seabed');}else{assert.deepEqual(s.scores,{red:0,blue:0});tick(s,160);assert.equal(p.hp,100);assert.ok(p.y>=0);}}
+ for(const mode of ['deathmatch','defusal'] as const){const {s,p}=diver(mode);if(mode==='defusal')s.add('b','Opponent');p.hp=2.5;const events=tick(s,332),kill=events.find(e=>e.type==='kill'&&e.cause==='water');assert.ok(kill);assert.equal(p.hp,0);assert.equal(p.deaths,1);assert.equal(p.kills,0);assert.equal(killDescription(kill).method,'DROWNED');if(mode==='defusal'){assert.equal(s.phase,'finished');assert.equal(s.winner,'blue');assert.ok(s.bombs.find(b=>b.team===p.team)!.y< -2.6,'dropped C4 settles on the seabed');}else{assert.deepEqual(s.scores,{red:0,blue:0});tick(s,160);assert.equal(p.hp,100);assert.ok(p.y>=0);}}
 });
 test('all shores can be waded down and walked back out, without hidden walls or underwater floor snapping',()=>{
  for(const index of [0,8,16,24,32,40,48,56]){

@@ -88,7 +88,7 @@ function hand(m:Materials,left:boolean,open=false,kind:Equipment='rifle'){
   if(m.avatar==='groot')for(let i=0;i<8;i++){const x=-.045+i*.013;tube(g,[[x,.025,.09],[x+.007,.030,.02],[x-.005,.025,-.06]],.0025,i%2?m.accent:m.seam);}
   bake(g);return g;
 }
-type IronArmRig={palm:THREE.Group;forearm:THREE.Group;upper:THREE.Group;elbow:THREE.Mesh;shoulder:THREE.Vector3;left:boolean;thirdPerson:boolean;gun?:boolean;viewUp?:THREE.Vector3;viewLeft?:THREE.Vector3;skin?:THREE.Mesh;elbowTarget?:THREE.Vector3;relaxedWrist?:{position:THREE.Vector3;rotation:THREE.Quaternion;maxAngle:number}};
+type IronArmRig={palm:THREE.Group;forearm:THREE.Group;upper:THREE.Group;elbow:THREE.Mesh;shoulder:THREE.Vector3;left:boolean;thirdPerson:boolean;gun?:boolean;stableElbow?:boolean;viewUp?:THREE.Vector3;viewLeft?:THREE.Vector3;skin?:THREE.Mesh;elbowTarget?:THREE.Vector3;relaxedWrist?:{position:THREE.Vector3;rotation:THREE.Quaternion;maxAngle:number}};
 function syncIronArm(root:THREE.Group){
  const rig=root.userData.ironArm as IronArmRig|undefined;if(!rig)return;
  if(rig.relaxedWrist){rig.palm.position.copy(rig.relaxedWrist.position);rig.palm.quaternion.copy(rig.relaxedWrist.rotation);}
@@ -113,7 +113,8 @@ function syncIronArm(root:THREE.Group){
   const upperLength=rig.skin?.userData.upperLength??.34/.75,forearmLength=rig.skin?.userData.forearmLength??.32/.75,axis=wrist.clone().sub(shoulder),distance=axis.length();axis.normalize();
   const reach=Math.min(distance,upperLength+forearmLength-.0001);
   const along=(upperLength*upperLength-forearmLength*forearmLength+reach*reach)/(2*reach);
-  const bend=rig.elbowTarget?rig.elbowTarget.clone().applyMatrix4(root.matrix.clone().invert()).sub(shoulder):new THREE.Vector3(rig.left?-1:1,rig.skin?-1:-.2,rig.skin?-.12:-.35).transformDirection(root.matrix.clone().invert());
+  const inverse=root.matrix.clone().invert(),source=rig.skin?.userData.anatomicalArm.sourceToHeld as THREE.Matrix4|undefined;
+  const bend=rig.stableElbow&&source?new THREE.Vector3(rig.left?-1:1,-.6,.1).transformDirection(source).transformDirection(inverse):rig.elbowTarget?rig.elbowTarget.clone().applyMatrix4(inverse).sub(shoulder):new THREE.Vector3(rig.left?-1:1,rig.skin?-1:-.2,rig.skin?-.12:-.35).transformDirection(inverse);
   bend.addScaledVector(axis,-bend.dot(axis)).normalize();
   if(rig.skin&&!rig.thirdPerson){const handBend=handAxis.clone().addScaledVector(axis,-handAxis.dot(axis));if(handBend.lengthSq()>.01)bend.multiplyScalar(.18).add(handBend.normalize()).normalize();}
   elbow.copy(shoulder).addScaledVector(axis,along).addScaledVector(bend,Math.sqrt(Math.max(0,upperLength*upperLength-along*along)));
@@ -121,7 +122,7 @@ function syncIronArm(root:THREE.Group){
    const source=rig.skin!.userData.anatomicalArm.sourceToHeld as THREE.Matrix4|undefined,toBody=source?.clone().invert().multiply(root.matrix),bodyShoulder=toBody?shoulder.clone().applyMatrix4(toBody):undefined,bodyWrist=toBody?wrist.clone().applyMatrix4(toBody):undefined;
    const width=rig.skin.userData.style==='ironman'?.20:rig.skin.userData.style==='wonder-woman'?.17:.18,depth=rig.skin.userData.style==='ironman'?.175:.16;
    const accept=toBody?(point:THREE.Vector3)=>{const p=point.clone().applyMatrix4(toBody!);return p.y<=bodyShoulder!.y+.035&&p.y>1.0&&(p.y>=1.43||(p.x/.235)**2+(p.z/.18)**2>=1.03)&&boneClearsTorso(bodyShoulder!,p,0,width,depth)&&boneClearsTorso(p,bodyWrist!,0,width,depth);}:undefined;
-   elbow.copy(wristAwareElbow(shoulder,wrist,elbow,handAxis,upperLength,forearmLength,rig.relaxedWrist?.maxAngle??(!rig.thirdPerson?THREE.MathUtils.degToRad(35):undefined),accept));
+   if(!rig.stableElbow)elbow.copy(wristAwareElbow(shoulder,wrist,elbow,handAxis,upperLength,forearmLength,rig.relaxedWrist?.maxAngle??(!rig.thirdPerson?THREE.MathUtils.degToRad(35):undefined),accept));
   }
  }
  const fit=(part:THREE.Group,a:THREE.Vector3,b:THREE.Vector3)=>{const delta=b.clone().sub(a);part.position.copy(a);part.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.clone().normalize());part.scale.y=delta.length();};
@@ -154,7 +155,7 @@ function ironArm(m:Materials,left:boolean,at:number[],rotation:number[],open:boo
  limb(upper,[0,0,0],[0,1,0],.087,.072,m.sleeve);
  bake(forearm);bake(upper);
  const elbow=new THREE.Mesh(new THREE.SphereGeometry(.065,18,12),m.sleeve);root.add(elbow);
- root.userData.ironArm={palm,forearm,upper,elbow,left,thirdPerson,gun:isGun(kind),shoulder:thirdPerson?(m.avatar==='wonder-woman'?new THREE.Vector3(left?-.2266666667:.3866666667,.3466666667,.5):m.avatar==='ultraman'?new THREE.Vector3(left?-.24:.4533333333,.36,.5866666667):new THREE.Vector3(left?-.32:.54,.24,.64)):new THREE.Vector3(left?-.60:.48,-.78,.76)} satisfies IronArmRig;
+ root.userData.ironArm={palm,forearm,upper,elbow,left,thirdPerson,gun:isGun(kind),stableElbow:thirdPerson&&kind==='grenade',shoulder:thirdPerson?(m.avatar==='wonder-woman'?new THREE.Vector3(left?-.2266666667:.3866666667,.3466666667,.5):m.avatar==='ultraman'?new THREE.Vector3(left?-.24:.4533333333,.36,.5866666667):new THREE.Vector3(left?-.32:.54,.24,.64)):new THREE.Vector3(left?-.60:.48,-.78,.76)} satisfies IronArmRig;
  if((m.avatar==='wonder-woman'||m.avatar==='ultraman')&&left&&(kind==='knife'||kind==='grenade'))root.userData.ironArm.relaxedWrist={position:palm.position.clone(),rotation:palm.quaternion.clone(),maxAngle:THREE.MathUtils.degToRad(kind==='knife'?18:25)};
  if(articulated(m.avatar)){const rig=root.userData.ironArm as IronArmRig;rig.skin=createSuitArm(m.sleeve,m.accent,m.avatar as 'ironman'|'ultraman'|'wonder-woman',left,m.rubber,!thirdPerson);if(!thirdPerson&&left&&kind==='p90')rig.skin.userData.distributeForearmTwist=true;root.add(rig.skin);forearm.visible=upper.visible=elbow.visible=false;}
  syncIronArm(root);return root;
@@ -287,7 +288,7 @@ export function animateHands(root:THREE.Group,kind:Equipment,pose:HeldPose){
     if(articulated(root.userData.avatar)){const reach=THREE.MathUtils.smoothstep(pose.plant,0,.18);placeIronPalm(rig.right,[.075+.016*Math.sin(pose.plant*Math.PI*8),.18+.005*Math.sin(pose.plant*Math.PI*16),.035],[0,0,0],reach);}
     else{rig.right.rotation.x=Math.sin(pose.plant*Math.PI*16)*.045;rig.left.position.y=-.015*Math.sin(pose.plant*Math.PI);}
   }
-  if(kind==='grenade'&&!root.userData.suitItemGrip)rig.body.visible=grenadeThrowPose(pose.throwProgress).held;
+  if(kind==='grenade'&&!root.userData.suitItemGrip)rig.body.visible=grenadeThrowPose(pose.throwProgress,!!root.userData.thirdPerson).held;
   if(root.userData.suitItemGrip)animateSuitItemGrip(root,rig,kind,pose);
   if(pose.death){
     const weight=THREE.MathUtils.clamp(pose.death,0,1);
@@ -309,23 +310,31 @@ function animateSuitItemGrip(root:THREE.Group,rig:{right:THREE.Group;left:THREE.
  const saved=root.userData.suitItemGrip as {contact:THREE.Matrix4;restPosition:THREE.Vector3;restQuaternion:THREE.Quaternion},body=rig.body;
  body.position.copy(saved.restPosition);body.quaternion.copy(saved.restQuaternion);
  rig.right.position.set(0,0,0);rig.right.quaternion.identity();
- if(kind==='grenade'&&root.userData.grenadeRightPalm){const rest=root.userData.grenadeRightPalm,right=rig.right.userData.ironArm as IronArmRig;right.palm.position.copy(rest.position);right.palm.quaternion.copy(rest.rotation);right.relaxedWrist=grenadeThrowPose(pose.throwProgress).held?undefined:rest;}
+ if(kind==='grenade'&&root.userData.grenadeRightPalm){const rest=root.userData.grenadeRightPalm,right=rig.right.userData.ironArm as IronArmRig;right.palm.position.copy(rest.position);right.palm.quaternion.copy(rest.rotation);right.relaxedWrist=root.userData.thirdPerson||!grenadeThrowPose(pose.throwProgress).held?rest:undefined;}
  if(kind==='knife'){
   const swing=knifeSwing(pose.slash??1,pose.reverseSlash),weight=(root.userData.thirdPerson?.55:.72)*(pose.reduceMotion?.5:1),turn=new THREE.Quaternion().setFromEuler(new THREE.Euler(swing.pitch*weight,swing.yaw*weight,swing.roll*weight)),pivot=new THREE.Vector3(0,0,.04);
   body.quaternion.premultiply(turn);body.position.copy(pivot).sub(pivot.clone().applyQuaternion(turn)).add(new THREE.Vector3(swing.x,swing.y,swing.z).multiplyScalar(weight));
   rig.left.position.set(-.035*swing.guard,-.055*swing.guard,.025*swing.guard);
  }
  if(kind==='grenade'){
-  const action=grenadeThrowPose(pose.throwProgress);body.position.add(v(action.position));body.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...action.rotation as [number,number,number])));body.visible=action.held;
+  const action=grenadeThrowPose(pose.throwProgress,!!root.userData.thirdPerson);body.position.add(v(action.position));body.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...action.rotation as [number,number,number])));body.visible=action.held;
   const pin=body.getObjectByName('grenade-pin');if(pin){pin.position.copy(pin.userData.restPosition).add(new THREE.Vector3(-.18*action.pinPull,.03*action.pinPull,.02*action.pinPull));pin.visible=action.pinVisible;}
-  const socket=root.getObjectByName('grenade-release');if(socket){const release=grenadeThrowPose(.7),matrix=new THREE.Matrix4().compose(saved.restPosition.clone().add(v(release.position)),saved.restQuaternion.clone().premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...release.rotation as [number,number,number]))),body.scale);socket.position.set(0,.015,0).applyMatrix4(matrix);}
+  const socket=root.getObjectByName('grenade-release');if(socket){const release=grenadeThrowPose(.7,!!root.userData.thirdPerson),matrix=new THREE.Matrix4().compose(saved.restPosition.clone().add(v(release.position)),saved.restQuaternion.clone().premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...release.rotation as [number,number,number]))),body.scale);socket.position.set(0,.015,0).applyMatrix4(matrix);}
  }
 
  body.updateMatrix();const desired=body.matrix.clone().multiply(saved.contact),at=new THREE.Vector3(),turn=new THREE.Quaternion(),scale=new THREE.Vector3();desired.decompose(at,turn,scale);
  const palm=rig.right.userData.ironArm.palm as THREE.Group;
  rig.right.quaternion.copy(turn).multiply(palm.quaternion.clone().invert());rig.right.position.copy(at).sub(palm.position.clone().applyQuaternion(rig.right.quaternion));
+ if(kind==='grenade'&&root.userData.thirdPerson){
+  // Solve the anatomical elbow before fitting the prop. Forcing a turned prop's
+  // wrist orientation into the elbow solver can flip the entire upper arm.
+  syncIronArm(rig.right);rig.right.updateMatrix();palm.updateMatrix();
+  const grip=rig.right.matrix.clone().multiply(palm.matrix).multiply(saved.contact.clone().invert());
+  grip.decompose(body.position,body.quaternion,body.scale);body.updateMatrix();
+  const socket=root.getObjectByName('grenade-release');if(socket)socket.position.set(0,.015,0).applyMatrix4(body.matrix);
+ }
  if(kind==='grenade'){
-  const action=grenadeThrowPose(pose.throwProgress),pin=body.getObjectByName('grenade-pin');
+  const action=grenadeThrowPose(pose.throwProgress,!!root.userData.thirdPerson),pin=body.getObjectByName('grenade-pin');
   rig.left.userData.ironArm.relaxedWrist=action.pinReach>.001?undefined:root.userData.grenadeGuard;
   if(pin){const rotation=[.15,-.65,1.3],turn=new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation as [number,number,number])),finger=new THREE.Vector3(.025,-.045,-.04).multiplyScalar(root.userData.avatar==='wonder-woman'?.84:1),contact=pin.position.clone().applyMatrix4(body.matrix).sub(finger.applyQuaternion(turn));placeIronPalm(rig.left,contact.toArray(),rotation,action.pinReach);}
   const morph=(palm:THREE.Group,name:string,weight:number)=>{const one=palm.userData[name+'Mesh'] as THREE.Mesh|undefined,meshes=palm.userData[name+'Meshes'] as THREE.Mesh[]|undefined;for(const mesh of meshes??(one?[one]:[]))mesh.morphTargetInfluences![0]=weight;};

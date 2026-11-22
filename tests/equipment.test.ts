@@ -5,11 +5,11 @@ import {neutralInput,validInput,type Input} from '@sirocco/shared';
 function tick(s:Simulation,n:number,patch:Partial<Input>={}){for(let j=0;j<n;j++){s.input('a',{...neutralInput(),seq:s.players.get('a')!.ack+1,...patch});s.step();}}
 function duel(){const s=new Simulation([]),a=s.add('a','A'),b=s.add('b','B');Object.assign(a,{x:0,z:0,protectedUntil:0});Object.assign(b,{x:0,z:-1.4,protectedUntil:0});return {s,a,b};}
 test('knife hits only in melee range, uses no ammo, respects cooldown and requires a new click',()=>{
-  const {s,a,b}=duel();tick(s,4,{weapon:'knife'});const ammo={...a.ammo};tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,60);assert.equal(s.events.find(e=>e.type==='melee')?.target,b.id);assert.deepEqual(a.ammo,ammo);
-  tick(s,30,{weapon:'knife',fire:true});assert.equal(b.hp,60);tick(s,1,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,20);
-  tick(s,1,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,20,'cooldown blocks rapid clicking');
-  b.z=-3;tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,20,'no long-range melee hits');
-  b.z=-1.4;tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,0);assert.equal(a.kills,1);assert.equal(s.events.find(e=>e.type==='kill')?.weapon,'knife');
+  const {s,a,b}=duel();tick(s,4,{weapon:'knife'});const ammo={...a.ammo};tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,80);assert.equal(s.events.find(e=>e.type==='melee')?.target,b.id);assert.deepEqual(a.ammo,ammo);
+  tick(s,30,{weapon:'knife',fire:true});assert.equal(b.hp,80);tick(s,1,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,60);
+  tick(s,1,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,60,'cooldown blocks rapid clicking');
+  b.z=-3;tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,60,'no long-range melee hits');
+  b.z=-1.4;for(let i=0;i<3;i++){tick(s,16,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});}assert.equal(b.hp,0);assert.equal(a.kills,1);assert.equal(s.events.find(e=>e.type==='kill')?.weapon,'knife');
 });
 test('knife respects walls, friendly fire and spawn protection',()=>{
   const {s,b}=duel();s.solids=[{x:0,y:1,z:-.7,w:3,h:3,d:.2,kind:'wall'}];tick(s,4,{weapon:'knife'});tick(s,1,{weapon:'knife',fire:true});assert.equal(b.hp,100);

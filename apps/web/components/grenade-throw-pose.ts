@@ -10,7 +10,18 @@ const keys:Key[]=[
  [.84,-.07,-.02,-.24,.75,-.15,.08],
  [1,0,0,0,0,0,0],
 ];
-export function grenadeThrowPose(progress:number){
- const p=Math.max(0,Math.min(1,Number.isFinite(progress)?progress:0)),i=Math.max(1,keys.findIndex((key,i)=>i>0&&p<=key[0])),a=keys[i-1],b=keys[i],t=smooth(p,a[0],b[0]),values=a.slice(1).map((v,j)=>v+(b[j+1]-v)*t);
+// The world arm is attached to a real shoulder. A camera-space wind-up turns
+// its wrist back far enough to force the elbow onto the opposite IK branch.
+const worldKeys:Key[]=[
+ [0,0,0,0,0,0,0],
+ [.14,0,.025,.015,.04,0,0],
+ [.34,0,.025,.015,.04,0,0],
+ [.54,.22,.34,.08,.35,-.22,-.08],
+ [.70,.10,.20,-.13,.20,.06,-.04],
+ [.84,.04,.08,-.15,.30,.10,-.04],
+ [1,0,0,0,0,0,0],
+];
+export function grenadeThrowPose(progress:number,thirdPerson=false){
+ const frames=thirdPerson?worldKeys:keys,p=Math.max(0,Math.min(1,Number.isFinite(progress)?progress:0)),i=Math.max(1,frames.findIndex((key,i)=>i>0&&p<=key[0])),a=frames[i-1],b=frames[i],t=smooth(p,a[0],b[0]),values=a.slice(1).map((v,j)=>v+(b[j+1]-v)*t);
  return {position:values.slice(0,3),rotation:values.slice(3),pinReach:smooth(p,0,.14)*(1-smooth(p,.38,.52)),pinPull:smooth(p,GRENADE_THROW.pinPullStart,GRENADE_THROW.pinPullEnd),pinVisible:p<.38,held:!grenadeReleased(p),open:smooth(p,.66,.74)};
 }

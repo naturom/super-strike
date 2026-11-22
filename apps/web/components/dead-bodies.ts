@@ -37,6 +37,8 @@ export class DeadBodies {
   poseAvatarBody(model,{crouch,air:0,landing:0,vy:0,grounded:true},0,0);poseWonderWomanSkirt(model);
   const held=model.getObjectByName('equippedWeapon') as THREE.Group|undefined;
   if(held){held.userData.motionOffset?.set(0,0,0);held.userData.motionRotation?.identity();animateHands(held,p.weapon,{reload:0,plant:0,throwProgress:0,slash:1,death:THREE.MathUtils.smoothstep(progress,0,.65)});}
+  // The authoritative pickup is now on the ground, rather than duplicated in the corpse's grip.
+  const gun=held?.getObjectByName('equipmentBody');if(gun&&p.weapon!=='knife'&&p.weapon!=='grenade'&&p.weapon!=='bomb')gun.visible=false;
   const axis=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),state.direction).normalize();
   model.quaternion.setFromAxisAngle(axis,fall*Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),p.yaw));
   const min=visibleMinimumY(model),freeY=p.y+p.death.vy*elapsed-9*elapsed*elapsed;

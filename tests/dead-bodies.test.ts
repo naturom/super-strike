@@ -10,7 +10,7 @@ import {DeadBodies,visibleMinimumY} from '../apps/web/components/dead-bodies';
 import {animateAvatarMotion,resetAvatarMotion} from '../apps/web/components/avatar-motion';
 
 test('death keeps an authoritative fall record for exactly five seconds, then clears it on respawn',()=>{
- const sim=new Simulation([]),a=sim.add('a','A'),b=sim.add('b','B');Object.assign(b,{protectedUntil:0,crouched:true,vy:-3});sim.damage(b,100,a,'rifle',a);
+ const sim=new Simulation([]),a=sim.add('a','A'),b=sim.add('b','B');Object.assign(b,{protectedUntil:0,crouched:true,vy:-3});sim.damage(b,200,a,'rifle',a);
  assert.equal(b.hp,0);assert.equal(b.respawnAt-sim.time,5000);assert.equal(RESPAWN_MS,5000);assert.equal(b.death!.crouched,true);assert.equal(b.death!.vy,-3);
  const deathAt=sim.time,position={x:b.x,y:b.y,z:b.z};sim.snapshot().players.find(p=>p.id===b.id)!.death!.from.x=999;assert.notEqual(b.death!.from.x,999);
  for(let i=0;i<149;i++){sim.input(b.id,{...neutralInput(),seq:i+1,forward:1,jump:true,fire:true,reload:true});sim.step();assert.equal(b.hp,0);assert.deepEqual({x:b.x,y:b.y,z:b.z},position);}
@@ -24,7 +24,7 @@ function fixture(run:(art:WorldArt)=>void){
 }
 test('all appearances collapse to the floor with attached limbs, remain still and revive upright',()=>fixture(art=>{
  for(const appearance of AVATARS){
-  const sim=new Simulation([]),p=sim.add('a','A'),attacker=sim.add('b','B');Object.assign(p,{avatar:appearance.id,x:0,y:0,z:0,yaw:0,protectedUntil:0});Object.assign(attacker,{x:0,z:3});sim.damage(p,100,attacker,'rifle',attacker);
+  const sim=new Simulation([]),p=sim.add('a','A'),attacker=sim.add('b','B');Object.assign(p,{avatar:appearance.id,x:0,y:0,z:0,yaw:0,protectedUntil:0});Object.assign(attacker,{x:0,z:3});sim.damage(p,200,attacker,'rifle',attacker);
   const model=buildAvatar(art,p.avatar);equipAvatarModel(art,model,'rifle',p.avatar);model.visible=true;const deaths=new DeadBodies();
   deaths.pose(model,p,sim.time,[]);assert.ok(model.up.clone().applyQuaternion(model.quaternion).y>.99);
   for(let i=1;i<=6;i++)deaths.pose(model,p,sim.time+i*160,[]);
@@ -39,7 +39,7 @@ test('all appearances collapse to the floor with attached limbs, remain still an
 test('airborne deaths fall onto supporting platforms and late round joiners do not create a corpse',()=>fixture(art=>{
  const sim=new Simulation([]),p=sim.add('a','A'),b=sim.add('b','B'),deaths=new DeadBodies(),model=buildAvatar(art,p.avatar);equipAvatarModel(art,model,'knife',p.avatar);
  assert.equal(deaths.pose(model,{...p,hp:0},sim.time,[]),undefined);
- Object.assign(p,{x:0,y:8,z:0,vy:2,grounded:false,protectedUntil:0,weapon:'knife'});sim.damage(p,100,b,'rifle',b);
+ Object.assign(p,{x:0,y:8,z:0,vy:2,grounded:false,protectedUntil:0,weapon:'knife'});sim.damage(p,200,b,'rifle',b);
  const floor:Solid={x:0,y:1.5,z:0,w:10,h:1,d:10,kind:'floor',style:'stone'};
  deaths.pose(model,p,sim.time+400,[floor]);assert.ok(model.position.y>6,'a midair death must fall progressively rather than teleport to the ground');
  deaths.pose(model,p,sim.time+2000,[floor]);const min=visibleMinimumY(model);assert.ok(min>=2&&min<2.1,`corpse must rest on the raised floor: ${min}`);disposeGroup(model);

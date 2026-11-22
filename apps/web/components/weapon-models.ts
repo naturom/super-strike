@@ -126,11 +126,26 @@ function ak47(art:WorldArt,g:THREE.Group,p:Finish){
   label(art,g,'AK  /  7.62',[0,.11,-.09],.115,.02);
 }
 function suppressedRifle(art:WorldArt,g:THREE.Group,p:Finish){
-  rifle(art,g,p);g.getObjectByName('muzzle')!.removeFromParent();
-  const mag=g.getObjectByName('magazine')!;mag.scale.y=.72;
-  barrel(g,p,-.72,MUZZLE_Z.m4a1s,.023);
-  cylinder(g,.037,.255,[0,.035,-.913],p.black);for(const z of [-.82,-.85,-.99,-1.02])ring(g,.037,.002,[0,.035,z],p.steel);
-  label(art,g,'SUPPRESSED',[0,.074,-.90],.12,.018);
+  // A separate classic carbine silhouette: fixed stock, open carry handle,
+  // round ribbed handguard and a short magazine, rather than the AR's rail chassis.
+  profile(g,[[.15,.07],[-.28,.07],[-.30,.02],[-.24,-.042],[-.08,-.055],[.13,-.065]],.084,p.black);
+  profile(g,[[.10,-.065],[.035,-.065],[.085,-.255],[.155,-.235]],.068,p.polymer);
+  for(let i=0;i<6;i++)part(g,[.072,.007,.045],[0,-.10-i*.022,.065+i*.005],p.rubber,.002);
+  const stock=shoulderStock(g);profile(stock,[[.15,.045],[.45,.045],[.46,-.12],[.37,-.12],[.16,-.018]],.088,p.polymer);part(stock,[.098,.17,.022],[0,-.037,.466],p.rubber);
+  cylinder(g,.058,.27,[0,.024,-.427],p.polymer);for(let i=0;i<10;i++)ring(g,.058,.004,[0,.024,-.31-i*.026],p.black);
+  for(const z of [-.287,-.567])cylinder(g,.061,.016,[0,.024,z],p.steel);
+  for(const x of [-.027,.027]){
+   cable(g,[[x,.076,.105],[x,.151,.08],[x,.166,-.11],[x,.134,-.17],[x,.077,-.18]],p.black,.012);
+   part(g,[.015,.025,.034],[x,.091,-.18],p.steel,.003);
+  }
+  part(g,[.068,.018,.25],[0,.165,-.035],p.black,.004);
+  for(const side of [-1,1])cable(g,[[side*.04,.043,-.64],[side*.024,.126,-.64],[0,.151,-.64]],p.steel,.009);
+  part(g,[.012,.035,.015],[0,.141,-.64],p.edge,.002);
+  trigger(g,p);magazine(g,p,'rifle');g.getObjectByName('magazine')!.scale.y=.72;
+  barrel(g,p,-.55,MUZZLE_Z.m4a1s,.018);
+  cylinder(g,.037,.255,[0,.035,-.913],p.black);for(const z of [-.80,-.83,-.99,-1.02])ring(g,.038,.002,[0,.035,z],p.steel);
+  for(const z of [.075,-.08,-.24])screw(g,.044,-.025,z,p);
+  label(art,g,'M4A1-S',[0,.074,-.10],.11,.021);
 }
 function p90(art:WorldArt,g:THREE.Group,p:Finish){
   // Bullpup receiver, open thumbhole stock and horizontal translucent magazine.

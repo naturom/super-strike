@@ -8,7 +8,18 @@ import {animateHands} from '../apps/web/components/held-equipment';
 import {grenadeThrowPose} from '../apps/web/components/grenade-throw-pose';
 import {animateGrenadeFlight,grenadeLeavesHand} from '../apps/web/components/grenade-flight';
 function tick(sim:Simulation,n:number,patch:Partial<Input>={}){for(let i=0;i<n;i++){sim.input('a',{...neutralInput(),weapon:'grenade',seq:sim.players.get('a')!.ack+1,...patch});sim.step();}}
-test('holding keeps one grenade ready indefinitely; release throws using the release aim',()=>{
+test('the last grenade completes its hold, release and recovery before automatically equipping the current primary',()=>{
+ for(const primary of ['rifle','ak47','marksman','p90','m249'] as const)for(const mode of ['deathmatch','defusal'] as const){
+  const sim=new Simulation([],mode),p=sim.add('a','A');p.primary=primary;p.ammo[primary]=10;p.grenades=1;tick(sim,1,{fire:true});tick(sim,50,{fire:true});assert.equal(p.grenades,0);assert.equal(p.weapon,'grenade');assert.equal(sim.grenades.length,0,'the last grenade remains held until release');
+  tick(sim,1);let ticks=0;while(!p.grenadeThrow?.released&&ticks++<40)tick(sim,1);assert.equal(p.grenadeThrow?.released,true);assert.equal(p.weapon,'grenade','retain the throwing follow-through');assert.equal(sim.grenades.length,1);
+  while(p.grenadeThrow&&ticks++<60)sim.step();assert.equal(p.grenadeThrow,undefined);assert.equal(p.weapon,primary);assert.equal(sim.snapshot().players[0].weapon,primary,'other players and spectators receive the switch');assert.equal(p.ammo[primary],10);
+  tick(sim,6);assert.equal(p.weapon,primary,'stale grenade inputs cannot switch back to an empty hand');assert.equal(sim.grenades.length,1);assert.equal(p.ammo[primary],10);
+ }
+});
+test('finishing the last grenade does not override a manual weapon choice after release',()=>{
+ const sim=new Simulation([]),p=sim.add('a','A');p.grenades=1;tick(sim,1,{fire:true});tick(sim,1);for(let n=0;n<30&&!p.grenadeThrow?.released;n++)tick(sim,1);tick(sim,1,{weapon:'pistol'});while(p.grenadeThrow)sim.step();assert.equal(p.weapon,'pistol');
+});
+test('holding keeps one grenade ready indefinitely; aim stays live until the grenade leaves the hand',()=>{
  const sim=new Simulation([]),p=sim.add('a','A');Object.assign(p,{x:0,y:0,z:0,protectedUntil:0});tick(sim,1,{fire:true});
  assert.equal(p.grenades,1);assert.equal(sim.grenades.length,0);assert.equal(sim.events[0].type,'grenadePrime');
  tick(sim,180,{fire:true,yaw:-Math.PI/2,pitch:-.2});
@@ -18,17 +29,21 @@ test('holding keeps one grenade ready indefinitely; release throws using the rel
  tick(sim,1,{yaw:Math.PI/2,pitch:.2});const releaseAt=p.grenadeThrow!.releaseAt!;
  assert.ok(releaseAt>sim.time);tick(sim,4,{yaw:-Math.PI/2,pitch:-.4});assert.equal(sim.grenades.length,0,'the forward throwing motion precedes hand release');
  tick(sim,1,{yaw:-Math.PI/2,pitch:-.4});assert.equal(sim.grenades.length,1);assert.equal(p.grenadeThrow?.released,true);assert.ok(grenadeThrowProgress(p.grenadeThrow,sim.time)>=.7);
- const g=sim.grenades[0],aim=direction(Math.PI/2,.2),event=sim.events.find(e=>e.type==='grenade')!;assert.ok(event);assert.ok(g.vx<0);assert.ok(Math.abs(g.vx-aim.x*17)<1e-8);assert.ok(Math.abs(g.vz-aim.z*17)<1e-8);assert.ok(event.from.y>p.y+eyeOf(p)-.2);assert.equal(g.explodeAt-sim.time,GRENADE_THROW.fuseMs);
+ const g=sim.grenades[0],aim=direction(-Math.PI/2,-.4),event=sim.events.find(e=>e.type==='grenade')!;assert.ok(event);assert.ok(g.vx>0);assert.ok(Math.abs(g.vx-aim.x*17)<1e-8);assert.ok(Math.abs(g.vz-aim.z*17)<1e-8);assert.ok(event.from.y>p.y+eyeOf(p)-.5);assert.equal(g.explodeAt-sim.time,GRENADE_THROW.fuseMs);
  assert.ok(grenadeLeavesHand(g,p.grenadeThrow,sim.time),'long-held grenades still hand off from the visible hand');
- tick(sim,12,{fire:true});assert.equal(p.grenadeThrow,undefined);assert.equal(p.grenades,1);assert.equal(sim.grenades.length,1);tick(sim,1);tick(sim,1,{fire:true});assert.equal(p.grenades,0);assert.equal(sim.grenades.length,1,'a new press primes the next grenade without auto throwing it');
+ const velocity={x:g.vx,z:g.vz};tick(sim,1,{fire:true,yaw:0,pitch:.5});assert.equal(g.vx,velocity.x);assert.equal(g.vz,velocity.z);tick(sim,11,{fire:true});assert.equal(p.grenadeThrow,undefined);assert.equal(p.grenades,1);assert.equal(sim.grenades.length,1);tick(sim,1);tick(sim,1,{fire:true});assert.equal(p.grenades,0);assert.equal(sim.grenades.length,1,'a new press primes the next grenade without auto throwing it');
 });
 test('a quick tap finishes pulling the pin before throwing exactly once',()=>{
  const sim=new Simulation([]),p=sim.add('a','A');tick(sim,1,{fire:true});const start=p.grenadeThrow!.startedAt;
  tick(sim,1,{yaw:.8,pitch:.1});assert.ok(Math.abs(p.grenadeThrow!.releaseAt!-start-GRENADE_THROW.releaseMs)<.001);
  tick(sim,19);assert.equal(sim.grenades.length,0);tick(sim,1);assert.equal(sim.grenades.length,1);assert.equal(p.grenadeThrow?.released,true);tick(sim,14);assert.equal(p.grenadeThrow,undefined);assert.equal(p.grenades,1);
 });
+test('hand release uses the newest accepted cursor direction even with movement inputs queued',()=>{
+ const sim=new Simulation([]),p=sim.add('a','A');Object.assign(p,{x:0,y:0,z:0});tick(sim,1,{fire:true});tick(sim,1);sim.time=p.grenadeThrow!.releaseAt!-DT*1000;const seq=p.ack;
+ for(const [index,yaw] of [0,.4,1.2].entries())sim.input(p.id,{...neutralInput(),weapon:'grenade',seq:seq+index+1,yaw,pitch:.25});sim.step();const g=sim.grenades[0],aim=direction(1.2,.25);assert.equal(p.yaw,0,'movement still consumes one input per tick');assert.equal(p.grenadeThrow?.yaw,1.2);assert.ok(Math.abs(g.vx-aim.x*17)<1e-8);assert.ok(Math.abs(g.vz-aim.z*17)<1e-8);
+});
 test('preparing a grenade locks switching until release, but death and disconnect cancel the throw',()=>{
- for(const cancel of ['death','disconnect','spawn'] as const){const sim=new Simulation([]),p=sim.add('a','A');p.protectedUntil=0;tick(sim,1,{fire:true});tick(sim,2,{weapon:'rifle',fire:true});assert.equal(p.weapon,'grenade');assert.equal(p.ammo.rifle,30);if(cancel==='death')sim.damage(p,100,p,'grenade',p);else if(cancel==='disconnect')sim.disconnect(p.id);else sim.spawn(p);for(let i=0;i<40;i++)sim.step();assert.equal(p.grenadeThrow,undefined);assert.equal(sim.grenades.length,0,`${cancel} leaves no delayed projectile`);}
+ for(const cancel of ['death','disconnect','spawn'] as const){const sim=new Simulation([]),p=sim.add('a','A');p.protectedUntil=0;tick(sim,1,{fire:true});tick(sim,2,{weapon:'rifle',fire:true});assert.equal(p.weapon,'grenade');assert.equal(p.ammo.rifle,30);if(cancel==='death')sim.damage(p,200,p,'grenade',p);else if(cancel==='disconnect')sim.disconnect(p.id);else sim.spawn(p);for(let i=0;i<40;i++)sim.step();assert.equal(p.grenadeThrow,undefined);assert.equal(sim.grenades.length,0,`${cancel} leaves no delayed projectile`);}
 });
 test('release position stays on the player side of a nearby wall and throw snapshots are independent',()=>{
  const sim=new Simulation([{x:0,y:1.6,z:-.35,w:4,h:4,d:.1,kind:'wall'}]),p=sim.add('a','A');Object.assign(p,{x:0,y:0,z:0});tick(sim,1,{fire:true});const snap=sim.snapshot();snap.players[0].grenadeThrow!.released=true;assert.equal(p.grenadeThrow!.released,false);tick(sim,21,{fire:true});tick(sim,1);tick(sim,5);const event=sim.events.find(e=>e.type==='grenade')!;assert.ok(event);assert.ok(event.from.z>-.3,'hand release cannot originate through a wall');

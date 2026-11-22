@@ -39,7 +39,7 @@ test('cave shell is closed; floor and ceiling rays match shared geometry, includ
 }));
 test('cave water uses recorded splash footsteps, ten seconds of full-body breath and gradual HP loss',()=>{
  const s=new Simulation('caverns'),p=s.add('a','Cave diver');Object.assign(p,{x:3,z:22,y:groundAt({x:3,z:22},map.solids),protectedUntil:1e9,grounded:true});assert.ok(fullySubmerged(p,map.water));assert.equal(surfaceAt(p,map.solids,map.water),'water');
- for(let i=0;i<300;i++)s.step();assert.equal(p.hp,100);for(let i=0;i<31;i++)s.step();assert.equal(p.hp,95);Object.assign(p,map.spawns.red[0]);for(let i=0;i<300;i++)s.step();assert.equal(p.hp,95,'dry ground resets drowning exposure');
+ for(let i=0;i<300;i++)s.step();assert.equal(p.hp,100);for(let i=0;i<31;i++)s.step();assert.equal(p.hp,97.5);Object.assign(p,map.spawns.red[0]);for(let i=0;i<300;i++)s.step();assert.equal(p.hp,97.5,'dry ground resets drowning exposure');
 });
 test('cave scenery stays within budget and switching back restores daylight',()=>fixture(art=>{
  const root=art.build('caverns');try{let draws=0,triangles=0,lights=0;root.traverse(o=>{if(o instanceof THREE.Mesh){draws++;triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3;}if(o instanceof THREE.PointLight){lights++;assert.equal(o.castShadow,false);}});assert.equal(lights,6);assert.ok(draws<=18,`${draws} draws`);assert.ok(triangles<25000,`${triangles} triangles`);}finally{disposeGroup(root);}

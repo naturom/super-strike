@@ -24,8 +24,8 @@ test('each player has one dog per game, with no recharge on death, respawn or re
 });
 test('dogs seek only enemies and total bite damage stays light',()=>{
  const {s,a,b,c}=fixture(),d=dog(s,a);let hits=0;
- for(let i=0;i<600;i++){s.step();for(const e of s.events)if(e.type==='damage'&&e.cause==='dog'){hits++;assert.equal(e.target,b.id);assert.equal(e.damage,5);}}
- assert.equal(hits,3);assert.equal(b.hp,85);assert.equal(a.hp,100);assert.equal(c.hp,100);assert.equal(s.dogs.length,0);
+ for(let i=0;i<600;i++){s.step();for(const e of s.events)if(e.type==='damage'&&e.cause==='dog'){hits++;assert.equal(e.target,b.id);assert.equal(e.damage,2.5);}}
+ assert.equal(hits,3);assert.equal(b.hp,92.5);assert.equal(a.hp,100);assert.equal(c.hp,100);assert.equal(s.dogs.length,0);
  s.damage(a,5,{id:a.id,team:a.team},'knife',d,undefined,'dog');assert.equal(a.hp,100,'dog damage can never hit its owner, even if incorrectly requested');
 });
 test('dogs cannot bite through walls, hit elevated players or attack teammates',()=>{

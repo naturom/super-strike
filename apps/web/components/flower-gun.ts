@@ -15,9 +15,11 @@ export function updateWeaponFlower(model:THREE.Object3D,shown:boolean,now:number
   }
   for(let petal=0;petal<9;petal++){
    const angle=petal*Math.PI*2/9,piece=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),pink);
-   piece.scale.set(.036,.065,.014);piece.position.set(Math.cos(angle)*.059,Math.sin(angle)*.059,-.235);piece.rotation.z=angle-Math.PI/2;flower.add(piece);
+   piece.name='flower-petal';piece.scale.set(.036,.065,.014);piece.position.set(Math.cos(angle)*.059,Math.sin(angle)*.059,-.235);piece.rotation.z=angle-Math.PI/2;flower.add(piece);
   }
-  const center=new THREE.Mesh(new THREE.SphereGeometry(.029,14,10),gold);center.scale.z=.48;center.position.z=-.215;flower.add(center);
+  // Seat the pollen dome in the petal plane and expose it on both sides so
+  // first-person, mirror and muzzle-facing views all show a raised centre.
+  const center=new THREE.Mesh(new THREE.SphereGeometry(.029,14,10),gold);center.name='flower-center';center.scale.z=.8;center.position.z=-.235;flower.add(center);
   flower.traverse(o=>{o.layers.mask=muzzle.layers.mask;if(o instanceof THREE.Mesh){o.castShadow=true;o.receiveShadow=true;}});muzzle.add(flower);
  }
  if(!flower.visible||flower.userData.started===undefined)flower.userData.started=now;
