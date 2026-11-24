@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import type {Room} from '@colyseus/sdk';
 
 export function LatencyMeter({room}:{room:Room|null}){

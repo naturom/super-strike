@@ -38,7 +38,12 @@ export class Simulation {
     this.players.set(id,p);this.queues.set(id,[]);this.spawn(p);if(this.mode==='defusal'&&this.roundLive){p.hp=0;p.respawnAt=0;}return p;
   }
   remove(id:string){const p=this.players.get(id);if(p&&p.hp>0&&this.phase==='playing')this.dropGuns(p);this.companions.removeOwner(id);this.flowerInventory.delete(id);this.falls.delete(id);this.waterExposure.delete(id);this.dropBomb(id);this.bombIntents.delete(id);this.players.delete(id);this.queues.delete(id);this.lastSeq.delete(id);this.nextShot.delete(id);this.trigger.delete(id);this.actions.delete(id);}
-  input(id:string,i:Input){const prev=this.lastSeq.get(id)??0;if(i.seq<=prev||i.seq-prev>120)return;this.lastSeq.set(id,i.seq);const p=this.players.get(id);if(!p)return;if(p.hp<=0||this.phase!=='playing'||i.spawnId!==undefined&&i.spawnId!==p.spawnId){p.ack=Math.max(p.ack,i.seq);return;}const q=this.queues.get(id);if(!q)return;if(q.length>=8)q.shift();q.push(i);}
+  input(id:string,i:Input){
+    // Sequence IDs order packets; they do not grant simulation time. After a
+    // stall/rate-limit burst, accept the next newer ID rather than locking this
+    // player out forever. Movement still consumes at most one input per tick.
+    const prev=this.lastSeq.get(id)??0;if(!Number.isSafeInteger(i.seq)||i.seq<0||i.seq>=2**31||i.seq<=prev)return;const resumed=i.seq-prev>120;this.lastSeq.set(id,i.seq);const p=this.players.get(id);if(!p)return;if(p.hp<=0||this.phase!=='playing'||i.spawnId!==undefined&&i.spawnId!==p.spawnId){p.ack=Math.max(p.ack,i.seq);return;}const q=this.queues.get(id);if(!q)return;if(resumed)q.length=0;if(q.length>=8)q.shift();q.push(i);return resumed;
+  }
   spawn(p:Player){
     p.avatar=this.teamAvatars[p.team];p.spawnId++;p.ack=Math.max(p.ack,this.lastSeq.get(p.id)??0);
     this.falls.delete(p.id);this.waterExposure.delete(p.id);this.flowerInventory.delete(p.id);p.untestedWeapons=undefined;p.flowerWeapons=undefined;

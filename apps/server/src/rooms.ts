@@ -17,6 +17,7 @@ export class ArenaRoom extends Room {
   private idle=new Map<string,number>();
   private surfaceClients=new Map<string,SurfaceCursor>();
   private gameChangedAt=-Infinity;
+  private lastLagLog=-Infinity;private resumedInputs=0;private limitedInputs=0;
   private profileExpiry?:{clear():void};
   onCreate(options:{invite:string;hostToken:string;awaitProfile?:boolean}) {
     this.hostToken=options.hostToken;
@@ -27,13 +28,18 @@ export class ArenaRoom extends Room {
     this.seatReservationTimeout=20;
     this.setPatchRate(null);
     roomsByInvite.set(this.inviteId,this.roomId);activeRooms.set(this.roomId,this);
-    this.setSimulationInterval(()=>{
+    this.setSimulationInterval((delta)=>{
+      const started=performance.now();
       this.sim.step();
       for(const event of this.sim.events)this.broadcast('combat',event);
       // Close abandoned tabs after two minutes without meaningful control input.
       for(const client of this.clients){const player=this.sim.players.get(client.sessionId),watching=this.sim.mode==='defusal'&&this.sim.phase==='playing'&&player?.hp===0;
         if(watching)this.idle.set(client.sessionId,Date.now());
         else if(Date.now()-(this.idle.get(client.sessionId)??Date.now())>120000)client.leave(4000,'Inactive for two minutes');}
+      const elapsed=performance.now()-started;
+      if((elapsed>50||delta>250||this.resumedInputs||this.limitedInputs)&&Date.now()-this.lastLagLog>30000){
+        this.lastLagLog=Date.now();log('room_lag',{severity:'WARNING',room:this.roomId,map:this.sim.mapId,players:this.clients.length,tickMs:Math.round(elapsed*100)/100,intervalMs:Math.round(delta),resumedInputs:this.resumedInputs,limitedInputs:this.limitedInputs,dogs:this.sim.dogs.length,trexes:this.sim.trexes.length});this.resumedInputs=this.limitedInputs=0;
+      }
     },1000/30);
     this.clock.setInterval(()=>{
       const state=this.snapshot(),{impacts,sprays,...motion}=state;
@@ -50,8 +56,8 @@ export class ArenaRoom extends Room {
       client.send('surfaceUpdates',cursor.next(this.sim.snapshot(),true));
     });
     this.onMessage('input',(client,value)=>{
-      if(!this.allow(client.sessionId)||!validInput(value))return;
-      this.sim.input(client.sessionId,value);
+      if(!this.allow(client.sessionId)){this.limitedInputs++;return;}if(!validInput(value))return;
+      if(this.sim.input(client.sessionId,value))this.resumedInputs++;
       const p=this.sim.players.get(client.sessionId);
       if(value.forward||value.strafe||value.fire||value.reload||value.jump||value.crouch||value.interact||value.spray||value.summon||p&&Math.abs(p.yaw-value.yaw)>0.01)this.idle.set(client.sessionId,Date.now());
     });
@@ -81,7 +87,7 @@ export class ArenaRoom extends Room {
     this.onMessage('appearance',(client)=>{if(!this.allow(client.sessionId))return;const player=this.sim.players.get(client.sessionId);if(player)player.avatar=this.sim.teamAvatars[player.team];});
     // Cached clients may still show the old vote button; it cannot skip the countdown.
     this.onMessage('rematch',()=>{});
-    log('room_created',{room:this.roomId,match:this.sim.matchId});
+    log('room_created',{room:this.roomId,match:this.sim.matchId,inviteId:this.inviteId,map:this.sim.mapId,mode:this.sim.mode});
   }
   private restart(next:Simulation){
     this.sim=next;this.gameChangedAt=Date.now();const state=this.snapshot();

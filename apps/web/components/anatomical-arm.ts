@@ -74,6 +74,13 @@ export function bindAnatomicalArm(mesh:THREE.Mesh,sourceToHeld:THREE.Matrix4){
 export function anatomicalShoulder(mesh:THREE.Mesh){return (mesh.userData.anatomicalArm as ArmShape).shoulder.clone();}
 /** Skin the original muscle surface to the two arm bones and the hand, preserving elbow anatomy. */
 export function poseAnatomicalArm(mesh:THREE.Mesh,shoulder:THREE.Vector3,elbow:THREE.Vector3,wrist:THREE.Vector3,palm:THREE.Matrix4){
+ // World movement/rotation is handled by the scene graph. Re-skin only when
+ // local joints, grip, torso seam or cuff actually change, retaining the exact
+ // same geometry and normals for idle characters and repeated solver passes.
+ const sourceMatrix=mesh.userData.anatomicalArm.sourceToHeld as THREE.Matrix4|undefined,radii=mesh.userData.wristRadii??[.034,.027];
+ const values=[...shoulder.toArray(),...elbow.toArray(),...wrist.toArray(),...palm.elements,...mesh.parent!.matrix.elements,...(sourceMatrix?.elements??[]),...radii,Number(!!mesh.userData.gloveWrist),Number(!!mesh.userData.distributeForearmTwist)],cached=mesh.userData.armPoseCache as number[]|undefined;
+ if(cached?.length===values.length&&values.every((value,i)=>Math.abs(value-cached[i])<1e-7))return;
+ mesh.userData.armPoseCache=values;
  const shape=mesh.userData.anatomicalArm as ArmShape,armInverse=mesh.parent!.matrix.clone().invert();
  const restUpper=shape.elbow.clone().sub(shape.shoulder).normalize(),restLower=shape.wrist.clone().sub(shape.elbow).normalize(),restPole=restUpper.clone().cross(restLower).normalize(),upperPole=restPole.clone().applyQuaternion(new THREE.Quaternion().setFromUnitVectors(restUpper,elbow.clone().sub(shoulder).normalize())),lowerPole=restPole.clone().applyQuaternion(new THREE.Quaternion().setFromUnitVectors(restLower,wrist.clone().sub(elbow).normalize()));
  {
