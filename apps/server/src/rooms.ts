@@ -59,7 +59,7 @@ export class ArenaRoom extends Room {
       if(!this.allow(client.sessionId)){this.limitedInputs++;return;}if(!validInput(value))return;
       if(this.sim.input(client.sessionId,value))this.resumedInputs++;
       const p=this.sim.players.get(client.sessionId);
-      if(value.forward||value.strafe||value.fire||value.reload||value.jump||value.crouch||value.interact||value.spray||value.summon||p&&Math.abs(p.yaw-value.yaw)>0.01)this.idle.set(client.sessionId,Date.now());
+      if(value.forward||value.strafe||value.fire||value.reload||value.jump||value.crouch||value.playDead||value.interact||value.spray||value.summon||p&&Math.abs(p.yaw-value.yaw)>0.01)this.idle.set(client.sessionId,Date.now());
     });
     this.onMessage('changeMap',(client,mapId)=>{
       const reject=(message:string)=>client.send('mapChangeError',{message});

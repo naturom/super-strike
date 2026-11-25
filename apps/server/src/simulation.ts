@@ -4,7 +4,7 @@ import {flowerPickupIds} from './flower-guns';
 import {TrexSimulation} from './trex-simulation';
 import {PLAYER_HEALTH,DEFAULT_TEAM_AVATARS,validTeamAvatars,type TeamAvatars,GRENADE_THROW,GRENADE_BLAST,grenadeBlastDamage,freshAmmo,isSidearm} from '@sirocco/shared';
 import {randomUUID} from 'node:crypto';
-import {DOG_RULES,rayDog,type Dog,DT,NEXT_GAME_COUNTDOWN_MS,BOMB_RESULT_DELAY_MS,TREX_RULES,rayTrex,type Trex,RESPAWN_MS,IMPACT_RULES,impactTarget,type ImpactMark,RADIUS,fallDamage,groundAt,fullySubmerged,WATER_RULES,TEAMS,sprayTarget,type Spray,BOMB_RULES,plantSite,canReachBomb,footprint,solidTop,intersects,ROUND_MS,WIN_SCORE,MAPS,DEFAULT_MAP,WEAPONS,KNIFE,isGun,direction,move,neutralInput,rayBox,rayPlayer,type HitZone,wallDistance,heightOf,eyeOf,nearestPickup,type Input,type Player,type Snapshot,type CombatEvent,type Solid,type Team,type MapId,type Pickup,type Grenade,type Equipment,type Vec3,type GameMode,type BombState} from '@sirocco/shared';
+import {DOG_RULES,rayDog,type Dog,DT,NEXT_GAME_COUNTDOWN_MS,BOMB_RESULT_DELAY_MS,TREX_RULES,rayTrex,type Trex,RESPAWN_MS,IMPACT_RULES,impactTarget,type ImpactMark,RADIUS,fallDamage,groundAt,fullySubmerged,WATER_RULES,TEAMS,sprayTarget,type Spray,BOMB_RULES,plantSite,canReachBomb,footprint,solidTop,intersects,ROUND_MS,WIN_SCORE,MAPS,DEFAULT_MAP,WEAPONS,KNIFE,isGun,direction,move,neutralInput,rayBox,rayPlayer,type HitZone,wallDistance,heightOf,eyeOf,eyePosition,nearestPickup,type Input,type Player,type Snapshot,type CombatEvent,type Solid,type Team,type MapId,type Pickup,type Grenade,type Equipment,type Vec3,type GameMode,type BombState} from '@sirocco/shared';
 export class Simulation {
   players=new Map<string,Player>();
   queues=new Map<string,Input[]>();
@@ -49,7 +49,7 @@ export class Simulation {
     this.falls.delete(p.id);this.waterExposure.delete(p.id);this.flowerInventory.delete(p.id);p.untestedWeapons=undefined;p.flowerWeapons=undefined;
     const others=[...this.players.values()].filter(o=>o.id!==p.id&&o.hp>0);
     const spots=MAPS[this.mapId].spawns[p.team].map(s=>({s,safety:Math.min(...others.map(o=>Math.hypot(o.x-s.x,o.z-s.z)),100)}));spots.sort((a,b)=>b.safety-a.safety);
-    Object.assign(p,spots[0].s,{hp:100,vy:0,grounded:true,crouched:false,ammo:freshAmmo(),weapon:'rifle',primary:'rifle',secondary:'pistol',scope:undefined,grenades:2,grenadeThrow:undefined,reloadUntil:0,respawnAt:0,death:undefined,climbing:undefined,protectedUntil:this.time+1500,yaw:MAPS[this.mapId].spawnYaw?.[p.team]??(p.team==='red'?0:Math.PI),pitch:0});
+    Object.assign(p,spots[0].s,{hp:100,vy:0,grounded:true,crouched:false,ammo:freshAmmo(),weapon:'rifle',primary:'rifle',secondary:'pistol',scope:undefined,grenades:2,grenadeThrow:undefined,reloadUntil:0,respawnAt:0,death:undefined,playingDead:undefined,climbing:undefined,protectedUntil:this.time+1500,yaw:MAPS[this.mapId].spawnYaw?.[p.team]??(p.team==='red'?0:Math.PI),pitch:0});
     this.queues.set(p.id,[]);this.trigger.delete(p.id);this.actions.set(p.id,{interact:false,throwAt:0});this.nextShot.set(p.id,this.time+100);
     // Assign an unclaimed charge before play starts. Full game resets rebuild
     // both charges after everyone has spawned.
@@ -64,12 +64,14 @@ export class Simulation {
       if(p.hp<=0){if(this.mode==='deathmatch'&&this.time>=p.respawnAt)this.spawn(p);continue;}
       if(isGun(p.weapon)&&p.reloadUntil&&this.time>=p.reloadUntil){p.ammo[p.weapon]=WEAPONS[p.weapon].magazine;p.reloadUntil=0;}
       const i=this.queues.get(p.id)?.shift();
-      const controls=i&&p.connected?i:{...neutralInput(),yaw:p.yaw,pitch:p.pitch,weapon:p.weapon,crouch:p.crouched};
+      const controls=i&&p.connected?i:{...neutralInput(),yaw:p.yaw,pitch:p.pitch,weapon:p.weapon,crouch:p.crouched,playDead:!!p.playingDead};
       const wasGrounded=p.grounded,fromY=p.y;
       // Track each uninterrupted fall on every map, regardless of its starting
       // surface. Include the jump apex and use movement's actual landing height.
       if(wasGrounded)this.falls.delete(p.id);
-      Object.assign(p,move(p,controls,this.solids,MAPS[this.mapId].ladders));
+      const wasPlayingDead=!!p.playingDead;
+      Object.assign(p,move(p,p.grenadeThrow||!this.moreFun?{...controls,playDead:false}:controls,this.solids,MAPS[this.mapId].ladders));
+      if(p.playingDead&&!wasPlayingDead){p.playingDead.at=this.time;p.protectedUntil=0;}
       const peak=Math.max(this.falls.get(p.id)?.height??fromY,fromY,p.y);
       if(p.climbing)this.falls.delete(p.id);
       else if(p.grounded){this.falls.delete(p.id);const amount=fallDamage(peak-p.y);if(amount)this.damage(p,amount,p,p.weapon,p,undefined,'fall');}
@@ -80,6 +82,7 @@ export class Simulation {
       if(!i||!p.connected)continue;
       this.bombIntents.set(p.id,{input:i,at:this.time});
       p.ack=i.seq;p.yaw=i.yaw;p.pitch=i.pitch;
+      if(p.playingDead){p.reloadUntil=0;p.scope=undefined;this.bombIntents.delete(p.id);this.trigger.set(p.id,false);this.actions.get(p.id)!.interact=false;continue;}
       if(this.moreFun&&i.summon){const creature=this.wildlife.summon(p,this.time,[...this.players.values()]);if(creature)this.emit('trexRoar',p,'knife',creature,creature,{target:creature.id});}
       if(this.moreFun&&i.dog){const dog=this.companions.deploy(p,this.time,[...this.players.values()]);if(dog)this.emit('dogDeploy',p,'knife',dog,dog,{target:dog.id});}
       if(i.spray){
@@ -124,7 +127,7 @@ export class Simulation {
     if(!exposure){exposure={since:this.time,nextDamage:this.time+WATER_RULES.breathMs};this.waterExposure.set(p.id,exposure);}
     if(this.time>exposure.nextDamage+.001){exposure.nextDamage+=WATER_RULES.damageIntervalMs;this.damage(p,WATER_RULES.damage,p,p.weapon,p,undefined,'water');}
   }
-  private eye(p:Player):Vec3{return{x:p.x,y:p.y+eyeOf(p),z:p.z};}
+  private eye(p:Player):Vec3{return eyePosition(p);}
   private emit(type:CombatEvent['type'],p:{id:string;team:Team},weapon:Equipment,from:Vec3,to:Vec3,extra:Partial<CombatEvent>={}){this.events.push({type,id:++this.eventId,shooter:p.id,team:p.team,weapon,from:{...from},to:{...to},...extra});}
   private dropGun(p:Player,weapon:import('@sirocco/shared').Weapon,side=1){
     const yaw=p.yaw+side*.35,sin=Math.sin(yaw),cos=Math.cos(yaw);
@@ -182,9 +185,9 @@ export class Simulation {
     const from=this.eye(p),dir=direction(p.yaw,p.pitch);let distance=Math.min(p.weapon==='knife'?KNIFE.range:150,wallDistance(from,dir,this.solids)),target:Player|undefined,creature:Trex|undefined,companion:Dog|undefined,hitZone:HitZone|undefined;
     for(const other of this.players.values()){
       if(other.id===p.id||other.hp<=0)continue;
-      const result=p.weapon==='knife'?null:rayPlayer(from,dir,other);
-      const t=p.weapon==='knife'?rayBox(from,dir,{x:other.x-RADIUS,y:other.y,z:other.z-RADIUS},{x:other.x+RADIUS,y:other.y+heightOf(other),z:other.z+RADIUS}):result?.distance??null;
-      if(t!==null&&t<distance){distance=t;target=other;hitZone=result?.zone;}
+      const result=p.weapon==='knife'&&!other.playingDead?null:rayPlayer(from,dir,other);
+      const t=p.weapon==='knife'&&!other.playingDead?rayBox(from,dir,{x:other.x-RADIUS,y:other.y,z:other.z-RADIUS},{x:other.x+RADIUS,y:other.y+heightOf(other),z:other.z+RADIUS}):result?.distance??null;
+      if(t!==null&&t<distance){distance=t;target=other;hitZone=p.weapon==='knife'?undefined:result?.zone;}
     }
     for(const trex of this.trexes){if(trex.hp<=0)continue;const hit=rayTrex(from,dir,trex);if(hit&&hit.distance<distance){distance=hit.distance;creature=trex;target=undefined;hitZone=hit.zone;}}
     for(const dog of this.dogs){if(dog.hp<=0)continue;const hit=rayDog(from,dir,dog);if(hit&&hit.distance<distance){distance=hit.distance;companion=dog;creature=undefined;target=undefined;hitZone=hit.zone;}}
@@ -292,7 +295,7 @@ export class Simulation {
       if(bomb.status==='carried'&&(!carrier||!carrier.connected||carrier.hp<=0))this.dropBomb(bomb.carrierId!);
       if(bomb.status==='carried'&&carrier)Object.assign(bomb,{x:carrier.x,y:carrier.y,z:carrier.z});
       const candidates=[...this.players.values()].filter(p=>{
-        const intent=this.bombIntents.get(p.id);if(!intent||this.time-intent.at>150||!p.connected||p.hp<=0||!p.grounded||!!p.grenadeThrow)return false;
+        const intent=this.bombIntents.get(p.id);if(!intent||this.time-intent.at>150||!p.connected||p.hp<=0||!p.grounded||!!p.grenadeThrow||!!p.playingDead)return false;
         const i=intent.input;if(i.forward||i.strafe||i.jump||i.reload)return false;
         if(bomb.status==='carried')return p.team===bomb.team&&bomb.carrierId===p.id&&p.weapon==='bomb'&&i.weapon==='bomb'&&i.fire&&!!plantSite(p,this.mapId,p.team);
         return bomb.status==='planted'&&p.team!==bomb.team&&i.interact&&!i.fire&&canReachBomb(p,bomb,this.solids);
@@ -341,5 +344,5 @@ export class Simulation {
     if(next.mode==='defusal')next.resetBomb();
     return next;
   }
-  snapshot():Snapshot{return{dogs:this.dogs.length?this.dogs.map(d=>({...d})):undefined,teamAvatars:{...this.teamAvatars},trexes:this.trexes.map(t=>({...t})),impacts:this.impacts.map(m=>({...m,position:{...m.position},normal:{...m.normal},ray:{origin:{...m.ray.origin},direction:{...m.ray.direction}}})),sprays:this.sprays.map(s=>({...s,position:{...s.position},normal:{...s.normal},ray:s.ray?{origin:{...s.ray.origin},direction:{...s.ray.direction}}:undefined})),mode:this.mode,roundLive:this.roundLive,outcome:this.outcome,bomb:this.bomb?{...this.bomb,planter:this.bomb.planter?{...this.bomb.planter}:undefined,action:this.bomb.action?{...this.bomb.action}:null}:null,bombs:this.bombs.map(b=>({...b,planter:b.planter?{...b.planter}:undefined,action:b.action?{...b.action}:null})),mapId:this.mapId,matchId:this.matchId,round:this.round,time:this.time,endsAt:this.endsAt,nextRoundAt:this.nextRoundAt,phase:this.phase,winner:this.winner,scores:{...this.scores},players:[...this.players.values()].map(p=>({...p,gunState:Math.max(0,Math.ceil(((this.nextShot.get(p.id)??0)-this.time-.01)/(DT*1000)))*2+(this.trigger.get(p.id)?1:0),death:p.death?{...p.death,from:{...p.death.from}}:undefined,grenadeThrow:p.grenadeThrow?{...p.grenadeThrow}:undefined,ammo:{...p.ammo},untestedWeapons:p.untestedWeapons?[...p.untestedWeapons]:undefined,flowerWeapons:p.flowerWeapons?[...p.flowerWeapons]:undefined})),pickups:this.pickups.map(({base,...p})=>p),grenades:this.grenades.map(g=>({...g}))};}
+  snapshot():Snapshot{return{moreFun:this.moreFun,dogs:this.dogs.length?this.dogs.map(d=>({...d})):undefined,teamAvatars:{...this.teamAvatars},trexes:this.trexes.map(t=>({...t})),impacts:this.impacts.map(m=>({...m,position:{...m.position},normal:{...m.normal},ray:{origin:{...m.ray.origin},direction:{...m.ray.direction}}})),sprays:this.sprays.map(s=>({...s,position:{...s.position},normal:{...s.normal},ray:s.ray?{origin:{...s.ray.origin},direction:{...s.ray.direction}}:undefined})),mode:this.mode,roundLive:this.roundLive,outcome:this.outcome,bomb:this.bomb?{...this.bomb,planter:this.bomb.planter?{...this.bomb.planter}:undefined,action:this.bomb.action?{...this.bomb.action}:null}:null,bombs:this.bombs.map(b=>({...b,planter:b.planter?{...b.planter}:undefined,action:b.action?{...b.action}:null})),mapId:this.mapId,matchId:this.matchId,round:this.round,time:this.time,endsAt:this.endsAt,nextRoundAt:this.nextRoundAt,phase:this.phase,winner:this.winner,scores:{...this.scores},players:[...this.players.values()].map(p=>({...p,gunState:Math.max(0,Math.ceil(((this.nextShot.get(p.id)??0)-this.time-.01)/(DT*1000)))*2+(this.trigger.get(p.id)?1:0),playingDead:p.playingDead?{...p.playingDead}:undefined,death:p.death?{...p.death,from:{...p.death.from}}:undefined,grenadeThrow:p.grenadeThrow?{...p.grenadeThrow}:undefined,ammo:{...p.ammo},untestedWeapons:p.untestedWeapons?[...p.untestedWeapons]:undefined,flowerWeapons:p.flowerWeapons?[...p.flowerWeapons]:undefined})),pickups:this.pickups.map(({base,...p})=>p),grenades:this.grenades.map(g=>({...g}))};}
 }

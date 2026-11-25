@@ -16,7 +16,7 @@ export class PlayerNames{
    const {sprite}=tag,own=p.id===localId;sprite.layers.set(own?1:0);const distance=model.position.distanceTo(this.origin);
    const targetY=model.position.y+(p.crouched?1.48:2.16);if(!sprite.userData.placed){sprite.position.set(model.position.x,targetY,model.position.z);sprite.userData.placed=true;}else{sprite.position.x=model.position.x;sprite.position.z=model.position.z;sprite.position.y=THREE.MathUtils.lerp(sprite.position.y,targetY,1-Math.exp(-dt*20));}
    if(time>=tag.checkAt){tag.checkAt=time+100;this.head.copy(model.position);this.head.y+=eyeOf(p);this.direction.copy(this.head).sub(this.origin);const length=this.direction.length();tag.clear=own||length<.01||wallDistance(this.origin,this.direction.multiplyScalar(1/length),solids)>=length-.08;}
-   sprite.visible=model.visible&&p.connected&&p.hp>0&&distance<40&&tag.clear;
+   sprite.visible=!p.playingDead&&model.visible&&p.connected&&p.hp>0&&distance<40&&tag.clear;
    const size=THREE.MathUtils.clamp(distance/8,1,3);sprite.scale.set(tag.width*size,LABEL_HEIGHT*size,1);sprite.material.opacity=THREE.MathUtils.clamp((40-distance)/10,0,1);
   }
   for(const id of this.tags.keys())if(!players.some(p=>p.id===id))this.remove(id);

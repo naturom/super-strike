@@ -20,28 +20,29 @@ export class DeadBodies {
  remove(id:string){return this.states.delete(id);}
  has(id:string){return this.states.has(id);}
  pose(model:THREE.Group,p:Player,time:number,solids:Solid[]){
-  if(!p.death)return;let state=this.states.get(p.id);
-  if(!state||state.at!==p.death.at){
-   const away=new THREE.Vector3(p.x-p.death.from.x,0,p.z-p.death.from.z);if(away.lengthSq()<.001)away.set(Math.sin(p.yaw),0,Math.cos(p.yaw));away.normalize();
+  const feign=p.playingDead,death=feign?{at:feign.at,from:{x:p.x-Math.sin(feign.yaw),y:p.y,z:p.z-Math.cos(feign.yaw)},vy:0,crouched:false}:p.death;
+  if(!death)return;let state=this.states.get(p.id);
+  if(!state||state.at!==death.at){
+   const away=new THREE.Vector3(p.x-death.from.x,0,p.z-death.from.z);if(away.lengthSq()<.001)away.set(Math.sin(p.yaw),0,Math.cos(p.yaw));away.normalize();
    let direction=away.clone(),best=-Infinity;
-   for(let i=0;i<8;i++){const candidate=away.clone().applyAxisAngle(new THREE.Vector3(0,1,0),i*Math.PI/4),clearance=wallDistance({x:p.x,y:p.y+.35,z:p.z},candidate,solids),score=Math.min(clearance,2.1)+candidate.dot(away)*.25;if(score>best){best=score;direction=candidate;}}
+   for(let i=0;i<(feign?1:8);i++){const candidate=away.clone().applyAxisAngle(new THREE.Vector3(0,1,0),i*Math.PI/4),clearance=wallDistance({x:p.x,y:p.y+.35,z:p.z},candidate,solids),score=Math.min(clearance,2.1)+candidate.dot(away)*.25;if(score>best){best=score;direction=candidate;}}
    // Stay on the actual floor/platform beneath the player's feet. Airborne
    // deaths continue falling under gravity instead of freezing in the sky.
    let floor=groundAt(p,solids,p.y+.08);for(const solid of solids)if(footprint(p,solid,0)){const top=solidTop(solid,p);if(top<=p.y+.08)floor=Math.max(floor,top);}
-   state={at:p.death.at,direction,floor,settled:false,center:new THREE.Vector3()};this.states.set(p.id,state);
+   state={at:death.at,direction,floor,settled:false,center:new THREE.Vector3()};this.states.set(p.id,state);
   }
   if(state.settled)return state;
   const elapsed=Math.max(0,(time-state.at)/1000),progress=THREE.MathUtils.clamp(elapsed/.85,0,1),fall=progress*progress*(3-2*progress);
-  const crouch=THREE.MathUtils.lerp(p.death.crouched?1:0,.36,THREE.MathUtils.smoothstep(elapsed,0,.22))*(1-.9*THREE.MathUtils.smoothstep(elapsed,.3,.85));
+  const crouch=THREE.MathUtils.lerp(death.crouched?1:0,.36,THREE.MathUtils.smoothstep(elapsed,0,.22))*(1-.9*THREE.MathUtils.smoothstep(elapsed,.3,.85));
   model.position.set(0,0,0);model.quaternion.identity();
   poseAvatarBody(model,{crouch,air:0,landing:0,vy:0,grounded:true},0,0);poseWonderWomanSkirt(model);
   const held=model.getObjectByName('equippedWeapon') as THREE.Group|undefined;
   if(held){held.userData.motionOffset?.set(0,0,0);held.userData.motionRotation?.identity();animateHands(held,p.weapon,{reload:0,plant:0,throwProgress:0,slash:1,death:THREE.MathUtils.smoothstep(progress,0,.65)});}
   // The authoritative pickup is now on the ground, rather than duplicated in the corpse's grip.
-  const gun=held?.getObjectByName('equipmentBody');if(gun&&p.weapon!=='knife'&&p.weapon!=='grenade'&&p.weapon!=='bomb')gun.visible=false;
+  const gun=held?.getObjectByName('equipmentBody');if(gun&&(feign||p.weapon!=='knife'&&p.weapon!=='grenade'&&p.weapon!=='bomb'))gun.visible=false;
   const axis=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),state.direction).normalize();
-  model.quaternion.setFromAxisAngle(axis,fall*Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),p.yaw));
-  const min=visibleMinimumY(model),freeY=p.y+p.death.vy*elapsed-9*elapsed*elapsed;
+  model.quaternion.setFromAxisAngle(axis,fall*Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),feign?.yaw??p.yaw));
+  const min=visibleMinimumY(model),freeY=p.y+death.vy*elapsed-9*elapsed*elapsed;
   model.position.set(p.x,Math.max(state.floor-min+.012,freeY),p.z);
   state.center.copy(model.position).addScaledVector(state.direction,.65*fall).y=Math.max(state.floor+.28,model.position.y+.65*(1-fall));
   state.settled=progress>=1&&freeY<=state.floor-min+.012;

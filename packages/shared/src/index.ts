@@ -83,26 +83,27 @@ export const MAPS:Record<MapId,MapDefinition>={
 export const DEFAULT_MAP:MapId='dunes';
 export const validMap = (value:unknown):value is MapId => typeof value==='string'&&Object.hasOwn(MAPS,value);
 export const SOLIDS=MAPS[DEFAULT_MAP].solids, SPAWNS=MAPS[DEFAULT_MAP].spawns;
-export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;dog?:boolean;}
+export interface Input {seq:number;spawnId?:number;scope?:0|1|2;forward:number;strafe:number;yaw:number;pitch:number;jump:boolean;sprint:boolean;fire:boolean;reload:boolean;weapon:Equipment;crouch:boolean;interact:boolean;spray?:boolean;summon?:boolean;dog?:boolean;playDead?:boolean;}
 export const neutralInput=():Input=>({seq:0,forward:0,strafe:0,yaw:0,pitch:0,jump:false,sprint:false,fire:false,reload:false,weapon:'rifle',crouch:false,interact:false});
-export interface Motion extends Vec3 {vy:number;grounded:boolean;crouched?:boolean;climbing?:string;}
+export interface Motion extends Vec3 {vy:number;grounded:boolean;crouched?:boolean;climbing?:string;playingDead?:{at:number;yaw:number};}
 export interface DeathState {at:number;from:Vec3;vy:number;crouched:boolean;}
 export interface Player extends Motion {avatar:AvatarId;id:string;name:string;team:Team;yaw:number;pitch:number;scope?:0|1|2;hp:number;kills:number;deaths:number;weapon:Equipment;primary:Weapon;secondary?:Sidearm;ammo:Ammo;grenades:number;grenadeThrow?:import('./grenade-throw').GrenadeThrow;crouched:boolean;reloadUntil:number;respawnAt:number;protectedUntil:number;connected:boolean;ack:number;spawnId:number;death?:DeathState;dogUsed?:true;untestedWeapons?:Weapon[];flowerWeapons?:Weapon[];/** Snapshot: remaining gun cooldown ticks × 2, plus 1 while the trigger is held. */gunState?:number;}
 export interface Grenade extends Vec3 {id:number;owner:string;team:Team;vx:number;vy:number;vz:number;explodeAt:number;}
 export interface Spray {id:number;owner:string;position:Vec3;normal:Vec3;size?:number;ray?:{origin:Vec3;direction:Vec3};expiresAt:number;}
 export type ImpactSurface='stone'|'wood'|'metal'|'sand'|'asphalt';
 export interface ImpactMark {id:number;at:number;weapon:Weapon|'knife';position:Vec3;normal:Vec3;surface:ImpactSurface;ray:{origin:Vec3;direction:Vec3};expiresAt:number;}
-export interface Snapshot {hostId?:string|null;teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
+export interface Snapshot {moreFun?:boolean;hostId?:string|null;teamAvatars?:TeamAvatars;trexes:import('./trex').Trex[];dogs?:import('./dogs').Dog[];sprays:Spray[];impacts:ImpactMark[];mode:GameMode;bomb:BombState|null;bombs:BombState[];roundLive:boolean;outcome:string;mapId:MapId;matchId:string;round:number;time:number;endsAt:number;nextRoundAt:number;phase:'playing'|'finished';winner:Team|'draw'|null;scores:Record<Team,number>;players:Player[];pickups:Pickup[];grenades:Grenade[];}
 export type HitZone = 'head'|'body';
 export interface CombatEvent {type:'dogDeploy'|'dogBite'|'dogDeath'|'flower'|'trexRoar'|'trexAttack'|'trexDeath'|'spray'|'shot'|'melee'|'kill'|'damage'|'reload'|'pickup'|'grenadePrime'|'grenade'|'explosion'|'bombPlant'|'bombDefuse'|'bombAction';id:number;shooter:string;target?:string;name?:string;victim?:string;victimTeam?:Team;team:Team;weapon:Equipment;from:Vec3;to:Vec3;damage?:number;hp?:number;hitZone?:HitZone;cause?:'fall'|'trex'|'dog'|'water';impact?:ImpactMark;inputSeq?:number;spawnId?:number;}
 export function validInput(value:unknown):value is Input {
   if(!value||typeof value!=='object')return false;const i=value as Input;
   return (i.scope===undefined||i.scope===0||i.scope===1||i.scope===2)&&(i.spawnId===undefined||Number.isSafeInteger(i.spawnId)&&i.spawnId>0)&&Number.isSafeInteger(i.seq)&&i.seq>=0&&i.seq<2**31&&Number.isFinite(i.forward)&&Math.abs(i.forward)<=1&&Number.isFinite(i.strafe)&&Math.abs(i.strafe)<=1&&Number.isFinite(i.yaw)&&Math.abs(i.yaw)<=Math.PI*2&&Number.isFinite(i.pitch)&&Math.abs(i.pitch)<=1.5&&
     ['jump','sprint','fire','reload'].every(k=>typeof (i as any)[k]==='boolean')&&
-    ['crouch','interact','spray','summon','dog'].every(k=>(i as any)[k]===undefined||typeof (i as any)[k]==='boolean')&&(i.weapon==='knife'||i.weapon==='grenade'||i.weapon==='bomb'||Object.hasOwn(WEAPONS,i.weapon));
+    ['crouch','interact','spray','summon','dog','playDead'].every(k=>(i as any)[k]===undefined||typeof (i as any)[k]==='boolean')&&(i.weapon==='knife'||i.weapon==='grenade'||i.weapon==='bomb'||Object.hasOwn(WEAPONS,i.weapon));
 }
-export const heightOf=(p:{crouched?:boolean})=>p.crouched?CROUCH_HEIGHT:HEIGHT;
-export const eyeOf=(p:{crouched?:boolean})=>p.crouched?CROUCH_EYE:EYE;
+export const heightOf=(p:{crouched?:boolean;playingDead?:unknown})=>p.playingDead?.75:p.crouched?CROUCH_HEIGHT:HEIGHT;
+export const eyeOf=(p:{crouched?:boolean;playingDead?:unknown})=>p.playingDead?.42:p.crouched?CROUCH_EYE:EYE;
+export function eyePosition(p:Vec3&{crouched?:boolean;playingDead?:{yaw:number}}):Vec3{const yaw=p.playingDead?.yaw;return {x:p.x+(yaw===undefined?0:Math.sin(yaw)*1.6),y:p.y+eyeOf(p),z:p.z+(yaw===undefined?0:Math.cos(yaw)*1.6)};}
 export function direction(yaw:number,pitch:number):Vec3{return{x:-Math.sin(yaw)*Math.cos(pitch),y:Math.sin(pitch),z:-Math.cos(yaw)*Math.cos(pitch)};}
 /** Circle/footprint test supports the hand-authored concave building outlines. */
 export function footprint(p:{x:number;z:number},b:Solid,r=RADIUS):boolean {
@@ -138,6 +139,16 @@ export function groundAt(p:{x:number;z:number},solids:Solid[]=SOLIDS,ceiling=Inf
   let y=-Infinity;for(const b of solids)if(b.kind==='floor'&&footprint(p,b,.001)){const h=solidTop(b,p);if(h<=ceiling)y=Math.max(y,h);}return y===-Infinity?0:y;
 }
 export function move(p:Motion,i:Input,solids:Solid[]=SOLIDS,ladders:readonly Ladder[]=[]):Motion {
+  if(i.playDead&&!p.playingDead&&p.grounded&&!p.climbing){
+    // Find room for the entire horizontal body on its current supporting floor.
+    const nearby=movementSolids(solids,p.x,p.z,2.2);
+    for(let n=0;n<8;n++){const yaw=i.yaw+n*Math.PI/4,clear=[-.12,.25,.65,1.05,1.45,1.72].every(d=>{const q={x:p.x+Math.sin(yaw)*d,y:p.y+.015,z:p.z+Math.cos(yaw)*d};let floor=groundAt(q,nearby,p.y+.1);for(const b of nearby)if(footprint(q,b,0)&&solidTop(b,q)<=p.y+.1)floor=Math.max(floor,solidTop(b,q));return !nearby.some(b=>intersects(q,b,.75,.34))&&Math.abs(floor-p.y)<.22;});if(clear){p={...p,crouched:false,vy:0,playingDead:{at:0,yaw}};break;}}
+  }
+  if(p.playingDead){
+    const nearby=movementSolids(solids,p.x,p.z,RADIUS);
+    if(i.playDead!==false||nearby.some(b=>intersects(p,b,i.crouch?CROUCH_HEIGHT:HEIGHT)))return {...p};
+    p={...p,playingDead:undefined};
+  }
   const climbing=climbLadder(p,i,solids,ladders);if(climbing)return climbing;
   // Cover the whole swept foot circle, including a diagonal sprint this tick.
   solids=movementSolids(solids,p.x,p.z,RADIUS+8*DT+.002);
@@ -181,6 +192,15 @@ export function rayBox(origin:Vec3,dir:Vec3,min:Vec3,max:Vec3):number|null {
 }
 /** Avatar-independent gun hitboxes, scaled with the same crouch height as the model. */
 export function rayPlayer(origin:Vec3,dir:Vec3,p:Motion):{distance:number;zone:HitZone}|null {
+  if(p.playingDead){
+    const yaw=p.playingDead.yaw,c=Math.cos(yaw),s=Math.sin(yaw),dx=origin.x-p.x,dz=origin.z-p.z;
+    const o={x:c*dx-s*dz,y:origin.y-p.y,z:s*dx+c*dz},d={x:c*dir.x-s*dir.z,y:dir.y,z:s*dir.x+c*dir.z};
+    const body=rayBox(o,d,{x:-.34,y:.02,z:-.2},{x:.34,y:.72,z:1.47});
+    let a=0,b=0,k=-1;for(const axis of ['x','y','z'] as const){const radius=axis==='z'?.17:.15,offset=(o[axis]-(axis==='y'?.42:axis==='z'?1.65:0))/radius,v=d[axis]/radius;a+=v*v;b+=2*offset*v;k+=offset*offset;}
+    const disc=b*b-4*a*k,near=a>0&&disc>=0?(-b-Math.sqrt(disc))/(2*a):-1,far=a>0&&disc>=0?(-b+Math.sqrt(disc))/(2*a):-1,head=far>=0?Math.max(0,near):null;
+    if(head!==null&&head<=150&&(body===null||head<body))return {distance:head,zone:'head'};
+    return body===null?null:{distance:body,zone:'body'};
+  }
   const scale=heightOf(p)/HEIGHT;
   const body=rayBox(origin,dir,{x:p.x-RADIUS,y:p.y,z:p.z-RADIUS},{x:p.x+RADIUS,y:p.y+1.5*scale,z:p.z+RADIUS});
   // An ellipsoid avoids awarding headshots in the empty corners beside the head.

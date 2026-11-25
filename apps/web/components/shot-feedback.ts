@@ -17,7 +17,7 @@ export class ShotFeedback {
  private advance(input:Input):Weapon|undefined{
   const p=this.player;if(!p)return;
   this.time+=DT*1000;
-  if(!p.hp||!p.connected||input.spawnId!==undefined&&input.spawnId!==p.spawnId)return;
+  if(input.playDead||p.playingDead||!p.hp||!p.connected||input.spawnId!==undefined&&input.spawnId!==p.spawnId)return;
   if(isGun(p.weapon)&&p.reloadUntil&&this.time>=p.reloadUntil){p.ammo[p.weapon]=WEAPONS[p.weapon].magazine;p.reloadUntil=0;}
   if(!(p.grenadeThrow&&!p.grenadeThrow.released)&&input.weapon!==p.weapon&&(input.weapon===p.primary||input.weapon===(p.secondary??'pistol')||!isGun(input.weapon))){
    p.weapon=input.weapon;p.reloadUntil=0;this.next=Math.max(this.next,this.time+(isGun(p.weapon)?200:0));

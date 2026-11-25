@@ -1,4 +1,4 @@
-import {eyeOf,type Player,type Snapshot} from '@sirocco/shared';
+import {eyePosition,type Player,type Snapshot} from '@sirocco/shared';
 
 /** Spectating changes only the displayed player, never the local session ID. */
 export class Spectator {
@@ -26,5 +26,6 @@ export class Spectator {
 export function spectatorPose(previous:Player,next:Player,t:number){
   t=Math.max(0,Math.min(1,t));const lerp=(a:number,b:number)=>a+(b-a)*t;
   const turn=Math.atan2(Math.sin(next.yaw-previous.yaw),Math.cos(next.yaw-previous.yaw));
-  return {x:lerp(previous.x,next.x),y:lerp(previous.y+eyeOf(previous),next.y+eyeOf(next)),z:lerp(previous.z,next.z),yaw:previous.yaw+turn*t,pitch:lerp(previous.pitch,next.pitch)};
+  const a=eyePosition(previous),b=eyePosition(next);
+  return {x:lerp(a.x,b.x),y:lerp(a.y,b.y),z:lerp(a.z,b.z),yaw:previous.yaw+turn*t,pitch:lerp(previous.pitch,next.pitch)};
 }
