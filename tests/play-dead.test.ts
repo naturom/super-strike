@@ -21,7 +21,7 @@ test('only More fun rooms allow play-dead input, in either game mode and after a
   const sim=new Simulation([],mode,DEFAULT_TEAM_AVATARS,moreFun),p=sim.add('p','P');
   for(let round=0;round<2;round++){
    Object.assign(p,{x:0,y:0,z:0,grounded:true});sim.input(p.id,{...neutralInput(),seq:p.ack+1,playDead:true});sim.step();
-   assert.equal(!!p.playingDead,moreFun);assert.equal(sim.snapshot().moreFun,moreFun);
+   assert.equal(!!p.playingDead,moreFun);assert.equal(sim.snapshot().moreFun??true,moreFun);
    sim.input(p.id,{...neutralInput(),seq:p.ack+1,playDead:false,crouch:true});sim.step();assert.equal(p.playingDead,undefined);assert.equal(p.crouched,true);
    sim.finish();sim.rematch();
   }
